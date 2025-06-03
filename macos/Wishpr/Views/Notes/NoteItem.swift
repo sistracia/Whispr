@@ -5,12 +5,16 @@ struct NoteItem: View {
     
     var title: String {
         let prefixLength = 10
+        let ellipsisContent = "..."
 
-        if note.content.count > prefixLength {
-            return "\(note.content.prefix(prefixLength))..."
+        guard let firstContent = note.content.first, !firstContent.isEmpty
+        else { return ellipsisContent }
+
+        if firstContent.count > prefixLength {
+            return "\(firstContent.prefix(prefixLength))\(ellipsisContent)"
         }
 
-        return note.content
+        return firstContent
     }
     
     var body: some View {
@@ -21,6 +25,6 @@ struct NoteItem: View {
 }
 
 #Preview {
-    NoteItem(note: .init(content: "Test1234567", createdAt: 1))
+    NoteItem(note: .init(content: ["Test1234567"], createdAt: 1))
         .frame(minWidth: 480, maxHeight: 180)
 }

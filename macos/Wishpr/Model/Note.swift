@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct Note {
-    var content: String
+    var content: [String]
     let createdAt: Int
 }
 
