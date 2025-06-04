@@ -35,9 +35,9 @@ struct NoteEditor: View {
 }
 
 #Preview {
-    var modelData = ModelData()
+    let modelData = ModelData()
     
-    var note = Note(content: [
+    let note = Note(content: [
         "Content 1",
         "Content 2",
         "Content 3",

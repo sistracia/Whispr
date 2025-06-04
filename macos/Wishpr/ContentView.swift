@@ -1,23 +1,18 @@
 import SwiftUI
+import ScreenCaptureKit
 
 struct ContentView: View {
     @EnvironmentObject var modelData: ModelData
     
+    @StateObject var screenRecorder = ScreenRecorder()
+    
     @State private var selectedNote: Note?
     @State private var showFavoritesOnly = false
-    @State private var recordApp = AppsAvailable.none
+    @State private var recordApp: String = AppsAvailable.none.rawValue
     @State private var recordDesktop = false
     @State private var recordMic = false
+    @State private var isUnauthorized = false
     
-    enum AppsAvailable: String, CaseIterable, Identifiable {
-        case none = "<None>"
-        case all = "All"
-        case lakes = "Lakes"
-        case rivers = "Rivers"
-        case mountains = "Mountains"
-        
-        var id: AppsAvailable { self }
-    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -36,70 +31,37 @@ struct ContentView: View {
                 NoteEditor(note: selectedNote)
                     .frame(maxWidth: geometry.size.width * 0.75)
             }
+            .navigationTitle("Screen Capture Sample")
             .toolbar {
-                ToolbarItemGroup(placement: .navigation) {
-                    Button {
-                        addNote()
-                    } label: {
-                        Label("Create a Note", systemImage: "square.and.pencil")
-                            .labelStyle(.iconOnly)
-                    }
-                    
-                    if selectedNote != nil {
-                        Button {
-                            deleteNote()
-                        } label: {
-                            Label("Delete Note", systemImage: "trash")
-                                .labelStyle(.iconOnly)
-                        }
-                    }
+                NoteActionToolbar(selectedNote: $selectedNote, placement: .navigation)
+                NoteVoiceToolbar(screenRecorder: screenRecorder,
+                                 recordApp: $recordApp,
+                                 recordDesktop: $recordDesktop,
+                                 recordMic: $recordMic,
+                                 placement: .primaryAction)
+            }
+            .overlay {
+                if isUnauthorized {
+                    Unauthorized()
                 }
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Menu {
-                        Picker("Record App", selection: $recordApp) {
-                            ForEach(AppsAvailable.allCases) { app in
-                                Text(app.rawValue).tag(app)
-                            }
-                        }
-                        .pickerStyle(.inline)
-                    } label: {
-                        Label("App Recorder", systemImage: "inset.filled.rectangle.badge.record")
+            }
+            .onAppear {
+                Task {
+                    if await screenRecorder.canRecord {
+                        await screenRecorder.start()
+                    } else {
+                        isUnauthorized = true
                     }
-                    Toggle(
-                        "Record Desktop",
-                        systemImage: "menubar.dock.rectangle.badge.record",
-                        isOn: $recordDesktop
-                    )
-                    Toggle(
-                        "Record Mic",
-                        systemImage: "record.circle",
-                        isOn: $recordMic
-                    )
                 }
             }
         }
     }
     
-    private func addNote() {
-        let newNote = Note(content: ["New Note"],
-                           createdAt: Int(Date().timeIntervalSince1970))
-        modelData.notes.insert(newNote, at: 0)
-        selectedNote = newNote
-    }
-    
-    private func deleteNote() {
-        guard let currentSelectedNote = selectedNote,
-              let deletedIndex = modelData.notes.firstIndex(of: currentSelectedNote)
-        else { return }
-        
-        selectedNote = nil
-        modelData.notes.remove(at: deletedIndex)
-    }
 }
 
 
 #Preview {
-    var modelData = ModelData()
+    let modelData = ModelData()
     modelData.notes = [
         .init(content: ["Content 1"], createdAt: 1),
         .init(content: ["Content 2"], createdAt: 2),
