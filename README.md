@@ -5,3 +5,9 @@
 </div>
 
 # Wishpr
+
+## References
+
+- [Meet ScreenCaptureKit](https://youtu.be/UvR0PNeEXcI)
+- [Take ScreenCaptureKit to the next level](https://youtu.be/PcqfIFYnVBI)
+- [What’s new in ScreenCaptureKit](https://youtu.be/-kM0inzL6uM)
