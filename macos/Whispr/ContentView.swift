@@ -4,8 +4,8 @@ import ScreenCaptureKit
 struct ContentView: View {
     @EnvironmentObject var modelData: ModelData
     
-//    @StateObject var screenRecorder = ScreenRecorder()
-    @StateObject var micRecorder = ScreenRecorder()
+    @StateObject var screenRecorder = ScreenRecorder()
+    @StateObject var micRecorder = MicRecorder()
     
     @State private var selectedNote: Note?
     @State private var showFavoritesOnly = false
@@ -35,8 +35,8 @@ struct ContentView: View {
             .navigationTitle("Screen Capture Sample")
             .toolbar {
                 NoteActionToolbar(selectedNote: $selectedNote, placement: .navigation)
-                if selectedNote != nil {
-                    NoteVoiceToolbar(screenRecorder: micRecorder,
+                if !isUnauthorized && selectedNote != nil {
+                    NoteVoiceToolbar(screenRecorder: screenRecorder,
                                      micRecorder: micRecorder,
                                      recordApp: $recordApp,
                                      recordDesktop: $recordDesktop,
@@ -51,9 +51,9 @@ struct ContentView: View {
             }
             .onAppear {
                 Task {
-                    let canRecordScreen = await micRecorder.canRecord
-                    let canRecordMic = await micRecorder.canRecord
-                    isUnauthorized = !canRecordScreen && !canRecordMic
+                    let canRecordScreen = await screenRecorder.canRecord
+                    let canRecordMic = micRecorder.canRecord
+                    isUnauthorized = !canRecordScreen || !canRecordMic
                 }
             }
         }

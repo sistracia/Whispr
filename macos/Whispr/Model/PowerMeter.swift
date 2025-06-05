@@ -95,7 +95,7 @@ class PowerMeter: AudioLevelProvider {
     }
 }
 
-private struct MeterTable {
+struct MeterTable {
     
     // The decibel value of the minimum displayed amplitude.
     private let kMinDB: Float = -60.0

@@ -2,7 +2,7 @@ import SwiftUI
 
 struct NoteEditor: View {
     @EnvironmentObject var modelData: ModelData
-    @ObservedObject var micRecorder: ScreenRecorder
+    @ObservedObject var micRecorder: MicRecorder
     var note: Note?
     
     var noteIndex: Int? {
@@ -56,7 +56,7 @@ struct NoteEditor: View {
 }
 
 #Preview {
-    @StateObject var micRecorder = ScreenRecorder()
+    @StateObject var micRecorder = MicRecorder()
     let modelData = ModelData()
     
     let note = Note(content: [

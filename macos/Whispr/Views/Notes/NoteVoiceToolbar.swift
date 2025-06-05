@@ -7,7 +7,7 @@ enum AppsAvailable: String {
 
 struct NoteVoiceToolbar: ToolbarContent {
     @ObservedObject var screenRecorder: ScreenRecorder
-    @ObservedObject var micRecorder: ScreenRecorder
+    @ObservedObject var micRecorder: MicRecorder
 
     @Binding var recordApp: String
     @Binding var recordDesktop: Bool
@@ -41,14 +41,10 @@ struct NoteVoiceToolbar: ToolbarContent {
             )
             .onChange(of: recordMic) { _, isOn in
                 Task {
-                    if !(await micRecorder.canRecord) {
-                        return
-                    }
-                    
                     if isOn {
-                        await micRecorder.start()
+                        await micRecorder.startStreaming()
                     } else {
-                        await micRecorder.stop()
+                        await micRecorder.stopStreaming()
                     }
                 }
             }
