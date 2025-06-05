@@ -1,8 +1,9 @@
 import SwiftUI
 
 struct NoteEditor: View {
-    var note: Note?
     @EnvironmentObject var modelData: ModelData
+    @ObservedObject var micRecorder: ScreenRecorder
+    var note: Note?
     
     var noteIndex: Int? {
         guard let note = note,
@@ -15,17 +16,37 @@ struct NoteEditor: View {
     var body: some View {
         if let noteIndex = noteIndex {
             GeometryReader { geometry in
-                VStack(alignment: .leading) {
-                    List {
-                        ForEach(0..<$modelData.notes[noteIndex].content.count, id: \.self) { index in
-                            TextEditor(text: $modelData.notes[noteIndex].content[index])
-                                .fixedSize(horizontal: false, vertical: true)
-                                .scrollDisabled(true)
-                                .listRowSeparator(.hidden)
+                VStack {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading) {
+                            Text("App Sound Meter")
+                            AudioLevelsView(audioLevelsProvider: micRecorder.audioLevelsProvider)
+                        }
+                        Divider()
+                        VStack(alignment: .leading) {
+                            Text("Desktop Sound Meter")
+                            AudioLevelsView(audioLevelsProvider: micRecorder.audioLevelsProvider)
+                        }
+                        Divider()
+                        VStack(alignment: .leading) {
+                            Text("Microphone Meter")
+                            AudioLevelsView(audioLevelsProvider: micRecorder.audioLevelsProvider)
                         }
                     }
+                    .padding(3)
+                    Divider()
+                    VStack(alignment: .leading) {
+                        List {
+                            ForEach(0..<$modelData.notes[noteIndex].content.count, id: \.self) { index in
+                                TextEditor(text: $modelData.notes[noteIndex].content[index])
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .scrollDisabled(true)
+                                    .listRowSeparator(.hidden)
+                            }
+                        }
+                    }
+                    .frame(minHeight: geometry.size.height)
                 }
-                .frame(minHeight: geometry.size.height)
                 .background(.background)
             }
         } else {
@@ -35,6 +56,7 @@ struct NoteEditor: View {
 }
 
 #Preview {
+    @StateObject var micRecorder = ScreenRecorder()
     let modelData = ModelData()
     
     let note = Note(content: [
@@ -58,7 +80,7 @@ struct NoteEditor: View {
         note
     ]
     
-    return NoteEditor(note: note)
+    return NoteEditor(micRecorder: micRecorder, note: note, )
         .frame(minWidth: 480, maxHeight: 180)
         .environmentObject(modelData)
 }

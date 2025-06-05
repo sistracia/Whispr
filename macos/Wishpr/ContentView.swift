@@ -4,7 +4,8 @@ import ScreenCaptureKit
 struct ContentView: View {
     @EnvironmentObject var modelData: ModelData
     
-    @StateObject var screenRecorder = ScreenRecorder()
+//    @StateObject var screenRecorder = ScreenRecorder()
+    @StateObject var micRecorder = ScreenRecorder()
     
     @State private var selectedNote: Note?
     @State private var showFavoritesOnly = false
@@ -28,17 +29,20 @@ struct ContentView: View {
                 
                 Divider()
                 
-                NoteEditor(note: selectedNote)
+                NoteEditor(micRecorder: micRecorder, note: selectedNote)
                     .frame(maxWidth: geometry.size.width * 0.75)
             }
             .navigationTitle("Screen Capture Sample")
             .toolbar {
                 NoteActionToolbar(selectedNote: $selectedNote, placement: .navigation)
-                NoteVoiceToolbar(screenRecorder: screenRecorder,
-                                 recordApp: $recordApp,
-                                 recordDesktop: $recordDesktop,
-                                 recordMic: $recordMic,
-                                 placement: .primaryAction)
+                if selectedNote != nil {
+                    NoteVoiceToolbar(screenRecorder: micRecorder,
+                                     micRecorder: micRecorder,
+                                     recordApp: $recordApp,
+                                     recordDesktop: $recordDesktop,
+                                     recordMic: $recordMic,
+                                     placement: .primaryAction)
+                }
             }
             .overlay {
                 if isUnauthorized {
@@ -47,11 +51,9 @@ struct ContentView: View {
             }
             .onAppear {
                 Task {
-                    if await screenRecorder.canRecord {
-                        await screenRecorder.start()
-                    } else {
-                        isUnauthorized = true
-                    }
+                    let canRecordScreen = await micRecorder.canRecord
+                    let canRecordMic = await micRecorder.canRecord
+                    isUnauthorized = !canRecordScreen && !canRecordMic
                 }
             }
         }

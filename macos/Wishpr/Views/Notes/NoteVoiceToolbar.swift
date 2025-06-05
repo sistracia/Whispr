@@ -7,10 +7,12 @@ enum AppsAvailable: String {
 
 struct NoteVoiceToolbar: ToolbarContent {
     @ObservedObject var screenRecorder: ScreenRecorder
+    @ObservedObject var micRecorder: ScreenRecorder
+
     @Binding var recordApp: String
     @Binding var recordDesktop: Bool
     @Binding var recordMic: Bool
-    
+
     var placement: ToolbarItemPlacement
     
     var body: some ToolbarContent {
@@ -37,6 +39,19 @@ struct NoteVoiceToolbar: ToolbarContent {
                 systemImage: "record.circle",
                 isOn: $recordMic
             )
+            .onChange(of: recordMic) { _, isOn in
+                Task {
+                    if !(await micRecorder.canRecord) {
+                        return
+                    }
+                    
+                    if isOn {
+                        await micRecorder.start()
+                    } else {
+                        await micRecorder.stop()
+                    }
+                }
+            }
         }
     }
 }
