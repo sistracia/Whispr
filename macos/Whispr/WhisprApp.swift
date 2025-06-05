@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct WishprApp: App {
+struct WhisprApp: App {
     @StateObject private var modelData = ModelData()
     
     var body: some Scene {
