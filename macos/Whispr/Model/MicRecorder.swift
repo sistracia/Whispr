@@ -1,5 +1,6 @@
+import Foundation
 import AVFoundation
-import AVFAudio
+import SwiftUI
 import OSLog
 import Combine
 
@@ -14,12 +15,15 @@ class MicRecorder: NSObject, ObservableObject {
     
     @Published private(set) var state = MicRecorderState.stopped
     
-    private let powerMeter = PowerMeter()
+    private var meterTableAverage = MeterTable()
+    private var meterTablePeak = MeterTable()
     @Published private(set) var audioLevelsProvider = AudioLevelsProvider()
     private var audioMeterCancellable: AnyCancellable?
     
-    private let audioEngine: AVAudioEngine
-    private let audioNodeBus: AVAudioNodeBus = 0
+    private let captureSession = AVCaptureSession()
+    private var captureAudioDataOutput = AVCaptureAudioDataOutput()
+    
+    @Published var captureDevice: AVCaptureDevice?
     
     var canRecord: Bool {
         get {
@@ -27,42 +31,62 @@ class MicRecorder: NSObject, ObservableObject {
         }
     }
     
-    override init() {
-        self.audioEngine = AVAudioEngine()
-    }
-    
-    private func startAudioMetering() {
-        audioMeterCancellable = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect().sink { [weak self] _ in
-            guard let self = self else { return }
-            self.audioLevelsProvider.audioLevels = self.powerMeter.levels
+    var captureDevices: [AVCaptureDevice] {
+        get {
+            let discoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.microphone],
+                                                                    mediaType: .audio,
+                                                                    position: .unspecified)
+            return discoverySession.devices
         }
     }
     
-    func startStreaming() {
+    func startStream() async {
+        guard let captureDevice = self.captureDevice else { return }
+        
+        self.state = .streaming
         do {
-            self.state = .streaming
+            self.captureSession.inputs.forEach { captureSession.removeInput($0) }
             
-            let audioFormat =  AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 44_100.0, channels: 1, interleaved: false)
-            self.audioEngine.inputNode.installTap(onBus: audioNodeBus, bufferSize: 4096 , format: audioFormat, block: { [weak self] buffer, _ in
-                guard let self = self else { return }
-                self.powerMeter.process(buffer: buffer)
-            })
+            // Wrap the audio device in a capture device input.
+            let audioInput = try AVCaptureDeviceInput(device: captureDevice)
+            // If the input can be added, add it to the session.
+            if self.captureSession.canAddInput(audioInput) {
+                self.captureSession.addInput(audioInput)
+            }
+            self.captureSession.startRunning()
             
-            try self.audioEngine.start()
+            // Create audio output
+            let audioQueue = DispatchQueue(label: "com.sistracia.MicRecording.AudioStreamingQueue")
+            self.captureAudioDataOutput.setSampleBufferDelegate(self, queue: audioQueue)
             
-            self.startAudioMetering()
+            if self.captureSession.canAddOutput(self.captureAudioDataOutput) {
+                self.captureSession.addOutput(self.captureAudioDataOutput)
+            }
+            
         } catch {
-            logger.error("Error start streaming: \(error.localizedDescription)")
+            self.logger.error("Failed to start stream: \(error.localizedDescription)")
             self.state = .stopped
         }
     }
     
     func stopStreaming() {
-        self.audioMeterCancellable?.cancel()
-        self.audioEngine.inputNode.removeTap(onBus: audioNodeBus)
-        self.audioEngine.stop()
-        self.powerMeter.processSilence()
-        self.state = .stopped
+        DispatchQueue.main.async {
+            self.audioMeterCancellable?.cancel()
+            self.captureSession.stopRunning()
+            self.audioLevelsProvider.audioLevels = AudioLevels.zero
+            self.state = .stopped
+        }
     }
 }
 
+extension MicRecorder: AVCaptureAudioDataOutputSampleBufferDelegate {
+    nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput: CMSampleBuffer, from: AVCaptureConnection) {
+        let averagePower = didOutput.toDBFS()
+        let peakPower = didOutput.toPeakDBFS()
+        
+        DispatchQueue.main.async {
+            self.audioLevelsProvider.audioLevels = AudioLevels(level: self.meterTableAverage.valueForPower(averagePower),
+                                                               peakLevel: self.meterTablePeak.valueForPower(peakPower))
+        }
+    }
+}

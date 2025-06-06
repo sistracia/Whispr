@@ -22,12 +22,10 @@ struct NoteEditor: View {
                             Text("App Sound Meter")
                             AudioLevelsView(audioLevelsProvider: micRecorder.audioLevelsProvider)
                         }
-                        Divider()
                         VStack(alignment: .leading) {
                             Text("Desktop Sound Meter")
                             AudioLevelsView(audioLevelsProvider: micRecorder.audioLevelsProvider)
                         }
-                        Divider()
                         VStack(alignment: .leading) {
                             Text("Microphone Meter")
                             AudioLevelsView(audioLevelsProvider: micRecorder.audioLevelsProvider)

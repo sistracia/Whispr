@@ -8,11 +8,11 @@ enum AppsAvailable: String {
 struct NoteVoiceToolbar: ToolbarContent {
     @ObservedObject var screenRecorder: ScreenRecorder
     @ObservedObject var micRecorder: MicRecorder
-
+    
     @Binding var recordApp: String
     @Binding var recordDesktop: Bool
     @Binding var recordMic: Bool
-
+    
     var placement: ToolbarItemPlacement
     
     var body: some ToolbarContent {
@@ -34,19 +34,33 @@ struct NoteVoiceToolbar: ToolbarContent {
                 systemImage: "menubar.dock.rectangle.badge.record",
                 isOn: $recordDesktop
             )
-            Toggle(
-                "Record Mic",
-                systemImage: "record.circle",
-                isOn: $recordMic
-            )
-            .onChange(of: recordMic) { _, isOn in
-                Task {
-                    if isOn {
-                        await micRecorder.startStreaming()
-                    } else {
-                        await micRecorder.stopStreaming()
+            Menu {
+                Toggle(
+                    "Record Microphone",
+                    systemImage: "record.circle",
+                    isOn: $recordMic
+                )
+                .disabled(micRecorder.captureDevice == nil)
+                .onChange(of: recordMic) { _, isOn in
+                    Task {
+                        if isOn {
+                            await micRecorder.startStream()
+                        } else {
+                            micRecorder.stopStreaming()
+                        }
                     }
                 }
+                
+                Picker("Select Microphone", selection: $micRecorder.captureDevice) {
+                    ForEach(micRecorder.captureDevices, id: \.self) { captureDevice in
+                        Text(captureDevice.localizedName)
+                            .tag(captureDevice)
+                    }
+                }
+                .pickerStyle(.inline)
+                .disabled(micRecorder.state == .streaming)
+            } label: {
+                Label("Microphone", systemImage: micRecorder.state == .stopped ? "microphone"  : "microphone.slash" )
             }
         }
     }
