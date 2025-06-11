@@ -1,3 +1,8 @@
+/*
+ Ref:
+ https://developer.apple.com/documentation/avfaudio/capturing-stereo-audio-from-built-in-microphones
+*/
+
 import Foundation
 import AVFoundation
 import Accelerate
@@ -88,7 +93,7 @@ class PowerMeter: AudioLevelProvider {
     }
 }
 
-private struct MeterTable {
+struct MeterTable {
     
     // The decibel value of the minimum displayed amplitude.
     private let kMinDB: Float = -60.0

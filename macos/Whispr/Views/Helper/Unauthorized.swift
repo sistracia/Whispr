@@ -5,10 +5,14 @@ struct Unauthorized: View {
         VStack() {
             Spacer()
             VStack {
-                Text("No screen recording permission.")
+                Text("Permission Required")
                     .font(.largeTitle)
                     .padding(.top)
-                Text("Open System Settings and go to Privacy & Security > Screen Recording to grant permission.")
+                Text("""
+Open System Settings and grant the permission, go to:
+1. Privacy & Security > Screen Recording.
+2. Privacy & Security > Microphone.
+""")
                     .font(.title2)
                     .padding(.bottom)
             }
