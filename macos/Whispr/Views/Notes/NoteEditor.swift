@@ -10,7 +10,7 @@ struct NoteEditor: View {
     
     var noteIndex: Int? {
         guard let note = note,
-              let noteIndex = modelData.notes.firstIndex(where: { $0.createdAt == note.createdAt })
+              let noteIndex = modelData.notes.firstIndex(where: { $0.createdAtInt == note.createdAtInt })
         else { return nil }
         
         return noteIndex
@@ -36,17 +36,8 @@ struct NoteEditor: View {
                     }
                     .padding(3)
                     Divider()
-                    VStack(alignment: .leading) {
-                        List {
-                            ForEach(0..<$modelData.notes[noteIndex].content.count, id: \.self) { index in
-                                TextEditor(text: $modelData.notes[noteIndex].content[index])
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .scrollDisabled(true)
-                                    .listRowSeparator(.hidden)
-                            }
-                        }
-                    }
-                    .frame(minHeight: geometry.size.height)
+                    NoteEditorContents(noteIndex: noteIndex)
+                        .frame(minHeight: geometry.size.height)
                 }
                 .background(.background)
             }
@@ -61,7 +52,6 @@ struct NoteEditor: View {
     @Previewable @State var appRecorder = ProcessTapRecorder(speechRecognizer: SpeechRecognizer())
     @Previewable @StateObject var micRecorder = MicRecorder(speechRecognizer: SpeechRecognizer())
     
-    let modelData = ModelData()
     let note = Note(content: [
         "Content 1",
         "Content 2",
@@ -78,7 +68,10 @@ struct NoteEditor: View {
         "Content 13",
         "Content 14",
     ],
-                    createdAt: 1)
+                    createdAt: Date(),
+                    fileURL: URL(string: "random"))
+    
+    let modelData = ModelData()
     modelData.notes = [
         note
     ]

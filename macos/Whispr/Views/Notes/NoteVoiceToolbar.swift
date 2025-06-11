@@ -18,7 +18,7 @@ struct NoteVoiceToolbar: ToolbarContent {
     
     var noteIndex: Int? {
         guard let note = note,
-              let noteIndex = modelData.notes.firstIndex(where: { $0.createdAt == note.createdAt })
+              let noteIndex = modelData.notes.firstIndex(where: { $0.createdAtInt == note.createdAtInt })
         else { return nil }
         
         return noteIndex

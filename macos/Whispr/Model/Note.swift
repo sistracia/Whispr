@@ -2,7 +2,16 @@ import SwiftUI
 
 struct Note {
     var content: [String]
-    let createdAt: Int
+    let createdAt: Date
+    let fileURL: URL?
+    
+    var createdAtInt: Int {
+        Int(self.createdAt.timeIntervalSince1970)
+    }
+    
+    var title: String {
+        createdAt.ISO8601Format()
+    }
 }
 
 extension Note: Hashable {}

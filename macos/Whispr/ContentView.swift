@@ -25,7 +25,7 @@ struct ContentView: View {
         GeometryReader { geometry in
             HStack(spacing: 0) {
                 List(selection: $selectedNote)  {
-                    ForEach(modelData.notes, id: \.createdAt) { note in
+                    ForEach(modelData.notes, id: \.createdAtInt) { note in
                         NoteItem(note: note)
                             .tag(note)
                             .listRowSeparator(.hidden)
@@ -67,6 +67,7 @@ struct ContentView: View {
         }
         .task {
             processController.activate()
+            modelData.loadNotes()
         }
     }
     
@@ -74,18 +75,19 @@ struct ContentView: View {
 
 
 #Preview {
+    let randomURL = URL(string: "random")
     let modelData = ModelData()
     modelData.notes = [
-        .init(content: ["Content 1"], createdAt: 1),
-        .init(content: ["Content 2"], createdAt: 2),
-        .init(content: ["Content 3"], createdAt: 3),
-        .init(content: ["Content 4"], createdAt: 4),
-        .init(content: ["Content 5"], createdAt: 5),
-        .init(content: ["Content 6"], createdAt: 6),
-        .init(content: ["Content 7"], createdAt: 7),
-        .init(content: ["Content 8"], createdAt: 8),
-        .init(content: ["Content 9"], createdAt: 9),
-        .init(content: ["Content 10000"], createdAt: 10),
+        .init(content: ["Content 1"], createdAt: Date().addingTimeInterval(1), fileURL: randomURL),
+        .init(content: ["Content 2"], createdAt: Date().addingTimeInterval(2), fileURL: randomURL),
+        .init(content: ["Content 3"], createdAt: Date().addingTimeInterval(3), fileURL: randomURL),
+        .init(content: ["Content 4"], createdAt: Date().addingTimeInterval(4), fileURL: randomURL),
+        .init(content: ["Content 5"], createdAt: Date().addingTimeInterval(5), fileURL: randomURL),
+        .init(content: ["Content 6"], createdAt: Date().addingTimeInterval(6), fileURL: randomURL),
+        .init(content: ["Content 7"], createdAt: Date().addingTimeInterval(7), fileURL: randomURL),
+        .init(content: ["Content 8"], createdAt: Date().addingTimeInterval(8), fileURL: randomURL),
+        .init(content: ["Content 9"], createdAt: Date().addingTimeInterval(9), fileURL: randomURL),
+        .init(content: ["Content 10000"], createdAt: Date().addingTimeInterval(10), fileURL: randomURL),
     ]
     
     return ContentView()

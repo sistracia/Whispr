@@ -1,8 +1,10 @@
 import SwiftUI
 
-let kAppSubsystem = "com.sistracia.Whispr"
+let kAppName = "Whispr"
+let kAppSubsystem = "com.sistracia.\(kAppName)"
 let kAudioStreamingQueue = "\(kAppSubsystem).AudioStreamingQueue"
 let kProcessTapRecorder = "\(kAppSubsystem).ProcessTapRecorder"
+let kWriteFileThrottle = "\(kAppSubsystem).Throttle"
 
 @main
 struct WhisprApp: App {

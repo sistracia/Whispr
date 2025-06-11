@@ -27,18 +27,14 @@ struct NoteActionToolbar: ToolbarContent {
     }
     
     private func addNote() {
-        let newNote = Note(content: ["New Note"],
-                           createdAt: Int(Date().timeIntervalSince1970))
-        modelData.notes.insert(newNote, at: 0)
-        selectedNote = newNote
+        selectedNote = modelData.initNewNote()
     }
     
     private func deleteNote() {
-        guard let currentSelectedNote = selectedNote,
-              let deletedIndex = modelData.notes.firstIndex(of: currentSelectedNote)
+        guard let currentSelectedNote = selectedNote
         else { return }
         
+        modelData.deleteNote(note: currentSelectedNote)
         selectedNote = nil
-        modelData.notes.remove(at: deletedIndex)
     }
 }
