@@ -30,26 +30,15 @@ class MicRecorder: NSObject, ObservableObject {
     init(speechRecognizer: SpeechRecognizer) {
         self.speechRecognizer = speechRecognizer
     }
-
-    var canRecord: Bool {
-        get async {
-            let canRecognize = await speechRecognizer.canRecognize
-            let canRecord = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
-            return canRecognize && canRecord
-        }
-    }
     
-    var captureDevices: [AVCaptureDevice] {
-        get {
-            let discoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.microphone],
-                                                                    mediaType: .audio,
-                                                                    position: .unspecified)
-            return discoverySession.devices
+    func startStream(locale: Locale? = nil, resultHandler: @escaping (String, (any Error)?) -> Void) async -> Bool {
+        let isAllowed = await AVCaptureDevice.requestAccess(for: .audio)
+        if !isAllowed {
+            return false
         }
-    }
-    
-    func startStream(locale: Locale? = nil, resultHandler: @escaping (String, (any Error)?) -> Void) async {
-        guard let captureDevice = self.captureDevice else { return }
+        
+        guard let captureDevice = self.captureDevice
+        else { return false }
         
         self.state = .streaming
         do {
@@ -71,7 +60,7 @@ class MicRecorder: NSObject, ObservableObject {
                 self.captureSession.addOutput(self.captureAudioDataOutput)
             }
             
-            let isTranscribingStarted = speechRecognizer.startTranscribing(locale: locale) { result, error in
+            let isTranscribingStarted = await speechRecognizer.startTranscribing(locale: locale) { result, error in
                 if let error = error {
                     self.logger.error("Error when transcribing: \(error.localizedDescription)")
                 } else {
@@ -85,9 +74,11 @@ class MicRecorder: NSObject, ObservableObject {
                 self.logger.error("Failed to start transcribing")
             }
             
+            return true
         } catch {
             self.logger.error("Failed to start stream: \(error.localizedDescription)")
             self.state = .stopped
+            return false
         }
     }
     
@@ -108,12 +99,30 @@ extension MicRecorder: AVCaptureAudioDataOutputSampleBufferDelegate {
         let peakPower = didOutput.toPeakDBFS()
         
         DispatchQueue.main.async {
-            self.audioLevelsProvider.audioLevels = AudioLevels(level: self.meterTableAverage.valueForPower(averagePower),
-                                                               peakLevel: self.meterTablePeak.valueForPower(peakPower))
+            let audioLevels = AudioLevels(level: self.meterTableAverage.valueForPower(averagePower),
+                                          peakLevel: self.meterTablePeak.valueForPower(peakPower))
+            self.audioLevelsProvider.audioLevels = audioLevels
         }
         
         Task { @MainActor in
             self.speechRecognizer.processAudioBuffer(didOutput)
+        }
+    }
+}
+
+extension MicRecorder {
+    static var captureDevices: [AVCaptureDevice] {
+        get {
+            let discoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.microphone],
+                                                                    mediaType: .audio,
+                                                                    position: .unspecified)
+            return discoverySession.devices
+        }
+    }
+    
+    static var authorized: Bool {
+        get {
+            AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         }
     }
 }

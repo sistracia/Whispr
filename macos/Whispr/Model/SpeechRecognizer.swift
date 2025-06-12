@@ -7,37 +7,33 @@ class SpeechRecognizer {
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
     
-    let supportLocales = SFSpeechRecognizer.supportedLocales()
-    
-    var canRecognize: Bool {
-        get async {
-        return await SFSpeechRecognizer.hasAuthorizationToRecognize()
-            
+    func startTranscribing(locale: Locale? = nil, _ resultHandler: @escaping (SFSpeechRecognitionResult?, (any Error)?) -> Void) async -> Bool {
+        let isAllowed = await SFSpeechRecognizer.requestAccess()
+        if !isAllowed {
+            return false
         }
-    }
-
-    func startTranscribing(locale: Locale? = nil, _ resultHandler: @escaping (SFSpeechRecognitionResult?, (any Error)?) -> Void) -> Bool {
+        
         var recognizer: SFSpeechRecognizer? = nil
         if let locale = locale {
             recognizer = SFSpeechRecognizer(locale: locale)
         } else {
             recognizer = SFSpeechRecognizer()
         }
-
+        
         guard let recognizer = recognizer else {
             return false
         }
-
+        
         if !recognizer.isAvailable {
             return false
         }
         
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
-
+        
         self.task = recognizer.recognitionTask(with: request, resultHandler: resultHandler)
         self.request = request
-
+        
         return true
     }
     
@@ -57,12 +53,27 @@ class SpeechRecognizer {
 }
 
 
+extension SpeechRecognizer {
+    static var authorized: Bool {
+        get {
+            SFSpeechRecognizer.authorizationStatus() == .authorized
+        }
+    }
+    
+    static var supportedLocales: [Locale] {
+        get {
+            SFSpeechRecognizer.supportedLocales().map { $0 }
+        }
+    }
+}
+
 extension SFSpeechRecognizer {
-    static func hasAuthorizationToRecognize() async -> Bool {
+    static func requestAccess() async -> Bool {
         await withCheckedContinuation { continuation in
             requestAuthorization { status in
                 continuation.resume(returning: status == .authorized)
             }
         }
     }
+    
 }

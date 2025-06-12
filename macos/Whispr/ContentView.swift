@@ -1,25 +1,23 @@
 import SwiftUI
-import ScreenCaptureKit
 
 struct ContentView: View {
     @EnvironmentObject var modelData: ModelData
     
-    private let speechRecognizer: SpeechRecognizer
     @State private var processController = AudioProcessController()
     
     @State private var processRecorder = ProcessTapRecorder(speechRecognizer: SpeechRecognizer())
     @State private var appRecorder = ProcessTapRecorder(speechRecognizer: SpeechRecognizer())
-    @StateObject private var micRecorder: MicRecorder
-    
-    init() {
-        let speechRecognizer = SpeechRecognizer()
-        self.speechRecognizer = speechRecognizer
-        self._micRecorder = StateObject(wrappedValue: MicRecorder(speechRecognizer: speechRecognizer))
-    }
+    @StateObject private var micRecorder = MicRecorder(speechRecognizer: SpeechRecognizer())
     
     @State private var selectedNote: Note?
     @State private var showFavoritesOnly = false
-    @State private var isUnauthorized = false
+    
+    var isUnauthorized: Bool {
+        let canRecognize =  SpeechRecognizer.authorized
+        let canRecordMic = MicRecorder.authorized
+//        let canRecordTap = isStreamDetected
+        return !canRecognize || !canRecordMic
+    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -46,24 +44,11 @@ struct ContentView: View {
         .toolbar {
             NoteActionToolbar(selectedNote: $selectedNote, placement: .navigation)
             NoteVoiceToolbar(note: selectedNote,
-                             speechRecognizer: speechRecognizer,
                              processController: processController,
                              processRecorder: $processRecorder,
                              appRecorder: $appRecorder,
                              micRecorder: micRecorder,
                              placement: .primaryAction)
-        }
-        .overlay {
-            if isUnauthorized {
-                Unauthorized()
-            }
-        }
-        .onAppear {
-            Task {
-                let canRecordScreen = true // TODO: Replace this with the state from system later
-                let canRecordMic = await micRecorder.canRecord
-                isUnauthorized = !canRecordScreen || !canRecordMic
-            }
         }
         .task {
             processController.activate()

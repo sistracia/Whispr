@@ -1,11 +1,9 @@
 import SwiftUI
-import ScreenCaptureKit
 
 struct NoteVoiceToolbar: ToolbarContent {
     @EnvironmentObject var modelData: ModelData
     
     var note: Note?
-    var speechRecognizer: SpeechRecognizer
     var processController: AudioProcessController
     
     @Binding var processRecorder: ProcessTapRecorder
@@ -54,7 +52,7 @@ struct NoteVoiceToolbar: ToolbarContent {
             ToolbarItemGroup(placement: placement) {
                 Menu {
                     Picker("Language", selection: $locale) {
-                        ForEach(speechRecognizer.supportLocales.map { $0 }, id: \.self) { supportedLocale in
+                        ForEach(SpeechRecognizer.supportedLocales, id: \.self) { supportedLocale in
                             Text(supportedLocale.identifier)
                                 .tag(supportedLocale)
                         }
@@ -64,6 +62,7 @@ struct NoteVoiceToolbar: ToolbarContent {
                 } label: {
                     Label("Language", systemImage: "globe")
                 }
+                
                 Menu {
                     Toggle("Record Process", isOn: processRecording)
                         .disabled(processRecorder.process == nil)
@@ -101,7 +100,7 @@ struct NoteVoiceToolbar: ToolbarContent {
                         .disabled(micRecorder.captureDevice == nil)
                     
                     Picker("Select Microphone", selection: $micRecorder.captureDevice) {
-                        ForEach(micRecorder.captureDevices, id: \.self) { captureDevice in
+                        ForEach(MicRecorder.captureDevices, id: \.self) { captureDevice in
                             Text(captureDevice.localizedName)
                                 .tag(captureDevice)
                         }
@@ -116,9 +115,9 @@ struct NoteVoiceToolbar: ToolbarContent {
     }
     
     private func toggleProcessRecording(_ isRecording: Bool, selectedNoteIndex: Int) {
-        do {
+        Task {
             if isRecording {
-                try processRecorder.startStream(locale: locale) { transcription, error in
+                let _ = await processRecorder.startStream(locale: locale) { transcription, error in
                     if error != nil {
                         return
                     }
@@ -127,15 +126,13 @@ struct NoteVoiceToolbar: ToolbarContent {
             } else {
                 processRecorder.stopStream()
             }
-        } catch {
-            
         }
     }
     
     private func toggleAppRecording(_ isRecording: Bool, selectedNoteIndex: Int) {
-        do {
+        Task {
             if isRecording {
-                try appRecorder.startStream(locale: locale) { transcription, error in
+                let _ = await appRecorder.startStream(locale: locale) { transcription, error in
                     if error != nil {
                         return
                     }
@@ -144,15 +141,13 @@ struct NoteVoiceToolbar: ToolbarContent {
             } else {
                 appRecorder.stopStream()
             }
-        } catch {
-            
         }
     }
     
     private func toggleMicRecording(_ isRecording: Bool, selectedNoteIndex: Int) {
         Task {
             if isRecording {
-                await micRecorder.startStream(locale: locale) { transcription, error in
+                let _ = await micRecorder.startStream(locale: locale) { transcription, error in
                     if error != nil {
                         return
                     }

@@ -9,6 +9,12 @@ struct NoteActionToolbar: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItemGroup(placement: placement) {
             Button {
+                modelData.openRecordingFolder()
+            } label: {
+                Label("Open in Finder", systemImage: "folder")
+                    .labelStyle(.iconOnly)
+            }
+            Button {
                 addNote()
             } label: {
                 Label("Create a Note", systemImage: "square.and.pencil")

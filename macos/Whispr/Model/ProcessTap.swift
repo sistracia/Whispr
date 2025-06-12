@@ -190,7 +190,7 @@ final class ProcessTapRecorder {
     init(speechRecognizer: SpeechRecognizer) {
         self.speechRecognizer = speechRecognizer
     }
-
+    
     private func startAudioMetering() {
         audioMeterCancellable = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect().sink { [weak self] _ in
             guard let self = self else { return }
@@ -199,16 +199,16 @@ final class ProcessTapRecorder {
     }
     
     @MainActor
-    func startStream(locale: Locale? = nil, resultHandler: @escaping (String, (any Error)?) -> Void) throws {
+    func startStream(locale: Locale? = nil, resultHandler: @escaping (String, (any Error)?) -> Void) async -> String {
         logger.debug(#function)
         
         if self.state == .streaming {
             logger.warning("\(#function, privacy: .public) while already recording")
-            return
+            return ""
         }
         
         guard let process = self.process else {
-            throw "Process unavailable"
+            return "Process unavailable"
         }
         
         let tap = ProcessTap(process: process)
@@ -217,33 +217,32 @@ final class ProcessTapRecorder {
         }
         
         guard var streamDescription = tap.tapStreamDescription else {
-            throw "Tap stream description not available."
+            return "Tap stream description not available."
         }
         
         guard let format = AVAudioFormat(streamDescription: &streamDescription) else {
-            throw "Failed to create AVAudioFormat."
+            return "Failed to create AVAudioFormat."
         }
         
         logger.info("Using audio format: \(format, privacy: .public)")
         
-        try tap.run(on: queue) { [weak self] inNow, inInputData, inInputTime, outOutputData, inOutputTime in
-            guard let self else { return }
-            do {
-                guard let buffer = AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: inInputData, deallocator: nil) else {
-                    throw "Failed to create PCM buffer"
-                }
+        do {
+            try tap.run(on: queue) { [weak self] inNow, inInputData, inInputTime, outOutputData, inOutputTime in
+                guard let self else { return }
+                guard let buffer = AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: inInputData, deallocator: nil)
+                else { return self.logger.error("\("Failed to create PCM buffer", privacy: .public)") }
                 
                 self.powerMeter.process(buffer: buffer)
                 self.speechRecognizer.processAudioBuffer(buffer)
-            } catch {
-                logger.error("\(error, privacy: .public)")
+            } invalidationHandler: { [weak self] tap in
+                guard let self else { return }
+                handleInvalidation()
             }
-        } invalidationHandler: { [weak self] tap in
-            guard let self else { return }
-            handleInvalidation()
+        } catch {
+            self.logger.error("Failed to activate tap: \(error.localizedDescription)")
         }
         
-        let isTranscribingStarted = speechRecognizer.startTranscribing(locale: locale) { result, error in
+        let isTranscribingStarted = await speechRecognizer.startTranscribing(locale: locale) { result, error in
             if let error = error {
                 self.logger.error("Error when transcribing: \(error.localizedDescription)")
             } else {
@@ -261,6 +260,8 @@ final class ProcessTapRecorder {
         
         self.tap = tap
         self.state = .streaming
+        
+        return ""
     }
     
     func stopStream() {
