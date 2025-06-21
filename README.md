@@ -6,6 +6,8 @@
 
 # Whispr
 
+Create a transcription from the mic, system, or application's sound.
+
 ## References
 
 - [Meet ScreenCaptureKit](https://youtu.be/UvR0PNeEXcI)
