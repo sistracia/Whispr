@@ -83,7 +83,7 @@ class MicRecorder: NSObject, ObservableObject {
     }
     
     func stopStream() {
-        DispatchQueue.main.async {
+        Task { @MainActor in
             self.audioMeterCancellable?.cancel()
             self.captureSession.stopRunning()
             self.audioLevelsProvider.audioLevels = AudioLevels.zero
@@ -94,11 +94,11 @@ class MicRecorder: NSObject, ObservableObject {
 }
 
 extension MicRecorder: AVCaptureAudioDataOutputSampleBufferDelegate {
-    nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput: CMSampleBuffer, from: AVCaptureConnection) {
+    func captureOutput(_ output: AVCaptureOutput, didOutput: CMSampleBuffer, from: AVCaptureConnection) {
         let averagePower = didOutput.toDBFS()
         let peakPower = didOutput.toPeakDBFS()
         
-        DispatchQueue.main.async {
+        Task { @MainActor in
             let audioLevels = AudioLevels(level: self.meterTableAverage.valueForPower(averagePower),
                                           peakLevel: self.meterTablePeak.valueForPower(peakPower))
             self.audioLevelsProvider.audioLevels = audioLevels

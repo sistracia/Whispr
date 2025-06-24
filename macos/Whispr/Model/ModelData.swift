@@ -1,7 +1,6 @@
 import SwiftUI
 import OSLog
 
-
 @MainActor
 class ModelData: ObservableObject {
     private let logger = Logger()
@@ -12,7 +11,6 @@ class ModelData: ObservableObject {
     
     @Published var notes: [Note] = []
     
-    @MainActor
     func loadNotes() {
         guard let dirPath = self.dirURL()
         else { return }
@@ -35,7 +33,6 @@ class ModelData: ObservableObject {
         self.notes = notes
     }
     
-    @MainActor
     func writeNote(_ newContent: String, at: Int) {
         if notes.isEmpty {
             return
@@ -95,7 +92,7 @@ class ModelData: ObservableObject {
         return directoryURL.appendingPathComponent(title + fileExtention)
     }
     
-    @MainActor
+    
     func initNewNote() -> Note {
         let currentDate = Date()
         let content = "New Note"
@@ -112,7 +109,6 @@ class ModelData: ObservableObject {
         return newNote
     }
     
-    @MainActor
     func deleteNote(at index: Int) {
         let deletedNote = self.notes.remove(at: index)
         
@@ -126,7 +122,6 @@ class ModelData: ObservableObject {
         }
     }
     
-    @MainActor
     func deleteNote(note: Note) {
         guard let deletedIndex = self.notes.firstIndex(of: note)
         else { return }
