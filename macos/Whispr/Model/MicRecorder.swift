@@ -1,49 +1,60 @@
-import Foundation
 import AVFoundation
-import SwiftUI
-import OSLog
 import Combine
+import Foundation
+import OSLog
+import SwiftUI
 
-enum MicRecorderState {
-    case stopped
-    case streaming
-}
-
-@MainActor
-class MicRecorder: NSObject, ObservableObject {
+@Observable
+final class MicRecorder: NSObject, StreamSource {
     private let logger = Logger()
-    
-    @Published private(set) var state = MicRecorderState.stopped
-    
-    private var meterTableAverage = MeterTable()
-    private var meterTablePeak = MeterTable()
-    @Published private(set) var audioLevelsProvider = AudioLevelsProvider()
+
+    private(set) var state = StreamState.stopped
+
+    private(set) var audioLevelsProvider = AudioLevelsProvider()
+    private let powerMeter = PowerMeter()
     private var audioMeterCancellable: AnyCancellable?
-    
+
     private let captureSession = AVCaptureSession()
     private var captureAudioDataOutput = AVCaptureAudioDataOutput()
-    
-    @Published  var captureDevice: AVCaptureDevice?
-    
+
+    var captureDevice: AVCaptureDevice?
+
     private let speechRecognizer: SpeechRecognizer
-    
+
     init(speechRecognizer: SpeechRecognizer) {
         self.speechRecognizer = speechRecognizer
     }
     
-    func startStream(locale: Locale? = nil, resultHandler: @escaping (String, (any Error)?) -> Void) async -> Bool {
+    private func startAudioMetering() {
+        audioMeterCancellable = Timer.publish(
+            every: 0.1,
+            on: .main,
+            in: .common
+        ).autoconnect().sink { [weak self] _ in
+            guard let self = self else { return }
+            self.audioLevelsProvider.audioLevels = self.powerMeter.levels
+        }
+    }
+
+    @MainActor
+    func startStream(
+        locale: Locale? = nil,
+        resultHandler: @escaping (String, (any Error)?) -> Void
+    ) async -> Error? {
         let isAllowed = await AVCaptureDevice.requestAccess(for: .audio)
         if !isAllowed {
-            return false
+            return "Microphone access is not allowed"
         }
-        
+
         guard let captureDevice = self.captureDevice
-        else { return false }
-        
+        else { return "Capture device not found" }
+
         self.state = .streaming
         do {
-            self.captureSession.inputs.forEach { captureSession.removeInput($0) }
-            
+            self.captureSession.inputs.forEach {
+                captureSession.removeInput($0)
+            }
+
             // Wrap the audio device in a capture device input.
             let audioInput = try AVCaptureDeviceInput(device: captureDevice)
             // If the input can be added, add it to the session.
@@ -51,60 +62,73 @@ class MicRecorder: NSObject, ObservableObject {
                 self.captureSession.addInput(audioInput)
             }
             self.captureSession.startRunning()
-            
+
             // Create audio output
             let audioQueue = DispatchQueue(label: kAudioStreamingQueue)
-            self.captureAudioDataOutput.setSampleBufferDelegate(self, queue: audioQueue)
-            
+            self.captureAudioDataOutput.setSampleBufferDelegate(
+                self,
+                queue: audioQueue
+            )
+
             if self.captureSession.canAddOutput(self.captureAudioDataOutput) {
                 self.captureSession.addOutput(self.captureAudioDataOutput)
             }
-            
-            let isTranscribingStarted = await speechRecognizer.startTranscribing(locale: locale) { result, error in
-                if let error = error {
-                    self.logger.error("Error when transcribing: \(error.localizedDescription)")
-                } else {
-                    let transcription = result?.bestTranscription.formattedString ?? ""
+
+            let isTranscribingStarted =
+                await speechRecognizer.startTranscribing(locale: locale) {
+                    result,
+                    error in
+                    if let error = error {
+                        self.logger.error(
+                            "Error when transcribing: \(error.localizedDescription)"
+                        )
+                    }
+
+                    let transcription =
+                        result?.bestTranscription.formattedString ?? ""
                     resultHandler(transcription, error)
+
                 }
-            }
-            
+
             // Handle error
             if !isTranscribingStarted {
                 self.logger.error("Failed to start transcribing")
             }
             
-            return true
+            self.startAudioMetering()
+
+            return nil
         } catch {
-            self.logger.error("Failed to start stream: \(error.localizedDescription)")
+            self.logger.error(
+                "Failed to start stream: \(error.localizedDescription)"
+            )
             self.state = .stopped
-            return false
+            return "Failed to start the stream"
         }
     }
-    
+
+    @MainActor
     func stopStream() {
-        Task { @MainActor in
-            self.audioMeterCancellable?.cancel()
-            self.captureSession.stopRunning()
-            self.audioLevelsProvider.audioLevels = AudioLevels.zero
-            self.state = .stopped
-            self.speechRecognizer.stopTranscribing()
+        if self.state == .stopped {
+            return
         }
+
+        self.state = .stopped
+        self.captureSession.stopRunning()
+        self.speechRecognizer.stopTranscribing()
+        self.audioLevelsProvider.audioLevels = AudioLevels.zero
+        self.audioMeterCancellable?.cancel()
     }
 }
 
 extension MicRecorder: AVCaptureAudioDataOutputSampleBufferDelegate {
-    func captureOutput(_ output: AVCaptureOutput, didOutput: CMSampleBuffer, from: AVCaptureConnection) {
-        let averagePower = didOutput.toDBFS()
-        let peakPower = didOutput.toPeakDBFS()
-        
+    func captureOutput(
+        _ output: AVCaptureOutput,
+        didOutput: CMSampleBuffer,
+        from: AVCaptureConnection
+    ) {
         Task { @MainActor in
-            let audioLevels = AudioLevels(level: self.meterTableAverage.valueForPower(averagePower),
-                                          peakLevel: self.meterTablePeak.valueForPower(peakPower))
-            self.audioLevelsProvider.audioLevels = audioLevels
-        }
-        
-        Task { @MainActor in
+            self.powerMeter.process(buffer: didOutput)
             self.speechRecognizer.processAudioBuffer(didOutput)
         }
     }
@@ -112,17 +136,15 @@ extension MicRecorder: AVCaptureAudioDataOutputSampleBufferDelegate {
 
 extension MicRecorder {
     static var captureDevices: [AVCaptureDevice] {
-        get {
-            let discoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.microphone],
-                                                                    mediaType: .audio,
-                                                                    position: .unspecified)
-            return discoverySession.devices
-        }
+        let discoverySession = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.microphone],
+            mediaType: .audio,
+            position: .unspecified
+        )
+        return discoverySession.devices
     }
-    
+
     static var authorized: Bool {
-        get {
-            AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
-        }
+        AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
     }
 }

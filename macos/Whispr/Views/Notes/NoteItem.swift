@@ -11,7 +11,7 @@ struct NoteItem: View {
 }
 
 #Preview {
-    NoteItem(note: .init(content: ["Test1234567"],
+    NoteItem(note: .init(content: [.init(text:"Test1234567")],
                          createdAt: Date(),
                          fileURL: URL(string: "random")))
         .frame(minWidth: 480, maxHeight: 180)

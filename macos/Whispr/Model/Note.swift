@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct Note {
-    var content: [String]
+    var content: [NoteContent]
+    
     let createdAt: Date
     let fileURL: URL?
     
@@ -15,6 +16,12 @@ struct Note {
 }
 
 extension Note: Hashable {}
+
+struct NoteContent {
+    var text: String
+}
+
+extension NoteContent: Hashable {}
 
 private struct SelectedNoteKey: FocusedValueKey {
     typealias Value = Binding<Note>

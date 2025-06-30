@@ -2,9 +2,9 @@ import Foundation
 import SwiftUI
 
 struct AudioLevelsView: NSViewRepresentable {
-    
+
     @StateObject var audioLevelsProvider: AudioLevelsProvider
-    
+
     func makeNSView(context: Context) -> NSLevelIndicator {
         let levelIndicator = NSLevelIndicator(frame: .zero)
         levelIndicator.minValue = 0
@@ -12,10 +12,11 @@ struct AudioLevelsView: NSViewRepresentable {
         levelIndicator.warningValue = 6
         levelIndicator.criticalValue = 8
         levelIndicator.levelIndicatorStyle = .continuousCapacity
-        levelIndicator.heightAnchor.constraint(equalToConstant: 5).isActive = true
+        levelIndicator.heightAnchor.constraint(equalToConstant: 5).isActive =
+            true
         return levelIndicator
     }
-    
+
     func updateNSView(_ levelMeter: NSLevelIndicator, context: Context) {
         levelMeter.floatValue = audioLevelsProvider.audioLevels.level * 10
     }

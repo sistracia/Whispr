@@ -10,7 +10,8 @@ class ModelData: ObservableObject {
     private let fileExtention = ".txt"
     
     @Published var notes: [Note] = []
-    
+    @Published var isRecording = false
+
     func loadNotes() {
         guard let dirPath = self.dirURL()
         else { return }
@@ -24,7 +25,11 @@ class ModelData: ObservableObject {
                 else { continue }
                 
                 let content = try String(contentsOf: contentURL, encoding: .utf8)
-                notes.append(.init(content: [content], createdAt: createdAt, fileURL: contentURL))
+                let noteContent = NoteContent(text: content)
+                let note = Note(content: [noteContent],
+                                createdAt: createdAt,
+                                fileURL: contentURL)
+                notes.append(note)
             }
         } catch {
             self.logger.error("Error loading the notes: \(error.localizedDescription)")
@@ -34,15 +39,17 @@ class ModelData: ObservableObject {
     }
     
     func writeNote(_ newContent: String, at: Int) {
-        if notes.isEmpty {
-            return
-        }
-        if notes[at].content.isEmpty {
-            return
-        }
-        notes[at].content[notes[at].content.count - 1] = newContent
+        guard let noteAt = notes[safe: at]
+        else { return }
         
-        guard let fileURL = notes[at].fileURL
+        let lastNoteIndex = noteAt.content.count - 1
+        guard var lastNote = noteAt.content[safe: lastNoteIndex]
+        else { return }
+        
+        lastNote.text = newContent
+        notes[safe: at]?.content[safe: lastNoteIndex] = lastNote
+        
+        guard let fileURL = notes[safe: at]?.fileURL
         else { return }
         
         self.writeFile(newContent, url: fileURL)
@@ -102,7 +109,7 @@ class ModelData: ObservableObject {
             self.writeFile(content, url: fileURL)
         }
         
-        let newNote = Note(content: [content],
+        let newNote = Note(content: [.init(text: content)],
                            createdAt: currentDate,
                            fileURL: fileURL)
         self.notes.insert(newNote, at: 0)
