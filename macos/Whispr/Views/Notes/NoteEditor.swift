@@ -133,15 +133,17 @@ struct NoteEditor: View {
             .init(text: "Content 3"),
             .init(text: "Content 4"),
             .init(text: "Content 5"),
+            .init(text: "Content 6"),
+            .init(text: "Content 7"),
+            .init(text: "Content 8"),
+            .init(text: "Content 9"),
+            .init(text: "Content 10"),
         ],
         createdAt: Date(),
         fileURL: URL(string: "random")
     )
 
-    let modelData = ModelData()
-    modelData.notes = [
-        note
-    ]
+    let modelData = ModelData(notes: [note])
 
     return NoteEditor(
         note: note,

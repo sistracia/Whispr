@@ -46,7 +46,8 @@ struct NoteVoiceToolbar: ToolbarContent {
                 get: { isProcessStreaming },
                 set: {
                     toggleRecording(
-                        $0,
+                        isRecording: $0,
+                        type: NoteType.process,
                         streamSource: processRecorder,
                         selectedNoteIndex: noteIndex
                     )
@@ -57,7 +58,8 @@ struct NoteVoiceToolbar: ToolbarContent {
                 get: { isAppStreaming },
                 set: {
                     toggleRecording(
-                        $0,
+                        isRecording: $0,
+                        type: NoteType.application,
                         streamSource: appRecorder,
                         selectedNoteIndex: noteIndex
                     )
@@ -68,7 +70,8 @@ struct NoteVoiceToolbar: ToolbarContent {
                 get: { isMicStreaming },
                 set: {
                     toggleRecording(
-                        $0,
+                        isRecording: $0,
+                        type: NoteType.microphone,
                         streamSource: micRecorder,
                         selectedNoteIndex: noteIndex
                     )
@@ -167,7 +170,8 @@ struct NoteVoiceToolbar: ToolbarContent {
     }
 
     private func toggleRecording(
-        _ isRecording: Bool,
+        isRecording: Bool,
+        type: NoteType,
         streamSource: StreamSource,
         selectedNoteIndex: Int
     ) {
@@ -179,12 +183,12 @@ struct NoteVoiceToolbar: ToolbarContent {
                     if error != nil {
                         return
                     }
-                    modelData.writeNote(transcription, at: selectedNoteIndex)
+                    modelData.writeNote(transcription, type: type)
                 }
             } else {
                 await streamSource.stopStream()
+                modelData.stopRecording(type: type)
             }
-            modelData.isRecording = isRecording
         }
     }
 }
