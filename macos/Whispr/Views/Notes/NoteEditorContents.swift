@@ -7,15 +7,8 @@ struct NoteEditorContents: View {
     var body: some View {
         VStack(alignment: .leading) {
             List {
-                if let note = modelData.notes[safe: noteIndex] {
-                    ForEach(0..<note.content.count, id: \.self) { index in
-                        let noteText = note.content[index].text
-                        Text(noteText)
-                            .listRowSeparator(.hidden)
-                    }
-                    Text(modelData.latestNote)
-                        .listRowSeparator(.hidden)
-                }
+                Text(modelData.formattedNote)
+                  .listRowSeparator(.hidden)
             }
         }
     }
@@ -23,12 +16,27 @@ struct NoteEditorContents: View {
 
 #Preview {
     let note = Note(
-        content: [
-            .init(text: "Content 1"),
-            .init(text: "Content 2"),
-            .init(text: "Content 3"),
-            .init(text: "Content 4"),
-            .init(text: "Content 5"),
+        contents: [
+            .init(
+                timestamp: Date.now,
+                text: "Content 1"
+            ),
+            .init(
+                timestamp: Date.now,
+                text: "Content 2"
+            ),
+            .init(
+                timestamp: Date.now,
+                text: "Content 3"
+            ),
+            .init(
+                timestamp: Date.now,
+                text: "Content 4"
+            ),
+            .init(
+                timestamp: Date.now,
+                text: "Content 5"
+            ),
         ],
         createdAt: Date(),
         fileURL: URL(string: "random")

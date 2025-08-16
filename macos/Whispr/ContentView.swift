@@ -71,27 +71,52 @@ struct ContentView: View {
     let modelData = ModelData(
         notes: [
             .init(
-                content: [.init(text: "Content 1")],
+                contents: [
+                    .init(
+                        timestamp: Date.now,
+                        text: "Content 1"
+                    )
+                ],
                 createdAt: Date().addingTimeInterval(1),
                 fileURL: randomURL
             ),
             .init(
-                content: [.init(text: "Content 2")],
+                contents: [
+                    .init(
+                        timestamp: Date.now,
+                        text: "Content 2"
+                    )
+                ],
                 createdAt: Date().addingTimeInterval(2),
                 fileURL: randomURL
             ),
             .init(
-                content: [.init(text: "Content 3")],
+                contents: [
+                    .init(
+                        timestamp: Date.now,
+                        text: "Content 3"
+                    )
+                ],
                 createdAt: Date().addingTimeInterval(3),
                 fileURL: randomURL
             ),
             .init(
-                content: [.init(text: "Content 4")],
+                contents: [
+                    .init(
+                        timestamp: Date.now,
+                        text: "Content 4"
+                    )
+                ],
                 createdAt: Date().addingTimeInterval(4),
                 fileURL: randomURL
             ),
             .init(
-                content: [.init(text: "Content 5")],
+                contents: [
+                    .init(
+                        timestamp: Date.now,
+                        text: "Content 5"
+                    )
+                ],
                 createdAt: Date().addingTimeInterval(5),
                 fileURL: randomURL
             ),

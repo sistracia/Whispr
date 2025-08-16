@@ -2,6 +2,7 @@ import AVFoundation
 import Combine
 import Foundation
 import OSLog
+import Speech
 import SwiftUI
 
 @Observable
@@ -17,31 +18,12 @@ final class MicRecorder: NSObject, StreamSource {
     private let captureSession = AVCaptureSession()
     private var captureAudioDataOutput = AVCaptureAudioDataOutput()
 
-    private var lastChunkCount = 0
-    private var transribeResultChunk: [String] = []
-    private var resultHandler: ((String, (any Error)?) -> Void)? = nil
-    private var transribeCancellable: AnyCancellable?
-
     var captureDevice: AVCaptureDevice?
 
     private let speechRecognizer: SpeechRecognizer
 
     init(speechRecognizer: SpeechRecognizer) {
         self.speechRecognizer = speechRecognizer
-    }
-
-    private func emitTranscribedResult() {
-        transribeCancellable = Timer.publish(
-            every: 0.1,
-            on: .main,
-            in: .common
-        ).autoconnect().sink { [weak self] _ in
-            guard let self = self else { return }
-            self.resultHandler?(
-                self.transribeResultChunk.joined(separator: " "),
-                nil
-            )
-        }
     }
 
     private func startAudioMetering() {
@@ -58,7 +40,8 @@ final class MicRecorder: NSObject, StreamSource {
     @MainActor
     func startStream(
         locale: Locale? = nil,
-        resultHandler: @escaping (String, (any Error)?) -> Void
+        resultHandler: @escaping ([SFTranscriptionSegment], (any Error)?) ->
+            Void
     ) async -> Error? {
         let isAllowed = await AVCaptureDevice.requestAccess(for: .audio)
         if !isAllowed {
@@ -78,35 +61,21 @@ final class MicRecorder: NSObject, StreamSource {
             return "Capture not allowed"
         }
 
-        self.resultHandler = resultHandler
-        let isTranscribingStarted = await speechRecognizer.startTranscribing(
-            locale: locale
-        ) {
-            // The transcribing result will have cut in the middle of trascription
-            result,
-            error in
-            if let error = error {
-                self.logger.error(
-                    "Error when transcribing: \(error.localizedDescription)"
-                )
+        let isTranscribingStarted = await self.speechRecognizer
+            .startTranscribing(
+                locale: locale
+            ) {
+                result,
+                error in
+                if let error = error {
+                    self.logger.error(
+                        "Error when transcribing: \(error.localizedDescription)"
+                    )
+                }
+
+                let segments = result?.bestTranscription.segments ?? []
+                resultHandler(segments, nil)
             }
-
-            let transcription = result?.bestTranscription.formattedString ?? ""
-            let currentChunkCount =
-                result?.bestTranscription.segments.count ?? 0
-
-            let chunkCountDiff = currentChunkCount - self.lastChunkCount
-            if (currentChunkCount == 1 && chunkCountDiff < 0)
-                || self.transribeResultChunk.isEmpty
-            {
-                self.transribeResultChunk.append("")
-                self.lastChunkCount = 0
-            }
-
-            let lastIndex = self.transribeResultChunk.count - 1
-            self.transribeResultChunk[safe: lastIndex] = transcription
-            self.lastChunkCount = currentChunkCount
-        }
 
         // Handle error
         if !isTranscribingStarted {
@@ -114,7 +83,6 @@ final class MicRecorder: NSObject, StreamSource {
         }
 
         self.startAudioMetering()
-        self.emitTranscribedResult()
 
         return nil
     }
@@ -165,10 +133,6 @@ final class MicRecorder: NSObject, StreamSource {
 
         self.audioMeterCancellable?.cancel()
         self.audioMeterCancellable = nil
-
-        self.transribeCancellable?.cancel()
-        self.transribeCancellable = nil
-        self.resultHandler = nil
     }
 }
 

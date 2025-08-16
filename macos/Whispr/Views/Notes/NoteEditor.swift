@@ -127,17 +127,47 @@ struct NoteEditor: View {
     )
 
     let note = Note(
-        content: [
-            .init(text: "Content 1"),
-            .init(text: "Content 2"),
-            .init(text: "Content 3"),
-            .init(text: "Content 4"),
-            .init(text: "Content 5"),
-            .init(text: "Content 6"),
-            .init(text: "Content 7"),
-            .init(text: "Content 8"),
-            .init(text: "Content 9"),
-            .init(text: "Content 10"),
+        contents: [
+            .init(
+                timestamp: Date.now,
+                text: "Content 1"
+            ),
+            .init(
+                timestamp: Date.now,
+                text: "Content 2"
+            ),
+            .init(
+                timestamp: Date.now,
+                text: "Content 3"
+            ),
+            .init(
+                timestamp: Date.now,
+                text: "Content 4"
+            ),
+            .init(
+                timestamp: Date.now,
+                text: "Content 5"
+            ),
+            .init(
+                timestamp: Date.now,
+                text: "Content 6"
+            ),
+            .init(
+                timestamp: Date.now,
+                text: "Content 7"
+            ),
+            .init(
+                timestamp: Date.now,
+                text: "Content 8"
+            ),
+            .init(
+                timestamp: Date.now,
+                text: "Content 9"
+            ),
+            .init(
+                timestamp: Date.now,
+                text: "Content 10"
+            ),
         ],
         createdAt: Date(),
         fileURL: URL(string: "random")

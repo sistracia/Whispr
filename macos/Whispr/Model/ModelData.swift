@@ -1,16 +1,12 @@
+import Combine
 import OSLog
+import Speech
 import SwiftUI
-
-enum NoteType {
-    case process
-    case application
-    case microphone
-}
 
 @MainActor
 class ModelData: ObservableObject {
     private let logger = Logger()
-    private let throttler = Throttler(kWriteFileThrottle, interval: 0.5, )
+    private let throttler = Throttler(kWriteFileThrottle, interval: 0.5)
 
     private let recordingOutputPath: String? =
         NSSearchPathForDirectoriesInDomains(
@@ -22,21 +18,72 @@ class ModelData: ObservableObject {
 
     @Published private(set) var notes: [Note] = []
 
-    var proccessNote = ""
-    var isProccessRecording = false
-
-    var applicationNote = ""
-    var isApplicationRecording = false
-
-    var microphoneNote = ""
-    var isMicrophoneRecording = false
+    private var processSpeech = SpeechText()
+    private var applicationSpeech = SpeechText()
+    private var microphoneSpeech = SpeechText()
 
     @Published private(set) var isRecording = false
-    @Published private(set) var latestNote = ""
+    @Published var formattedNote: String = ""
 
     init(notes: [Note] = [], isRecording: Bool = false) {
         self.notes = notes
         self.isRecording = isRecording
+    }
+
+    func writeNote(_ segments: [SFTranscriptionSegment], type: NoteType) {
+        if segments.isEmpty {
+            return
+        }
+
+        switch type {
+        case .process:
+            self.processSpeech.appendText(segments)
+            self.formattedNote = self.processSpeech.fullText
+        case .application:
+            self.applicationSpeech.appendText(segments)
+        case .microphone:
+            self.microphoneSpeech.appendText(segments)
+        }
+
+        self.updateRecordingState()
+        self.doingSomething()
+    }
+
+    private func doingSomething() {
+        //        guard let noteAt = notes[safe: at]
+        //        else { return }
+        //
+        //        let lastNoteIndex = noteAt.content.count - 1
+        //        guard var lastNote = noteAt.content[safe: lastNoteIndex]
+        //        else { return }
+        //
+        //        lastNote.text = newContent
+        //        notes[safe: at]?.content[safe: lastNoteIndex] = lastNote
+        //
+        //        guard let fileURL = notes[safe: at]?.fileURL
+        //        else { return }
+
+        //        self.writeFile(newContent, url: fileURL)
+    }
+
+    func stopRecording(type: NoteType) {
+        switch type {
+        case .process:
+            self.processSpeech.stopListening()
+        case .application:
+            self.applicationSpeech.stopListening()
+        case .microphone:
+            self.microphoneSpeech.stopListening()
+        }
+
+        self.updateRecordingState()
+    }
+
+    private func updateRecordingState() {
+        self.isRecording =
+            self.processSpeech.isRecording
+            || self.applicationSpeech.isRecording
+            || self.microphoneSpeech.isRecording
     }
 
     func loadNotes() {
@@ -61,9 +108,12 @@ class ModelData: ObservableObject {
                     contentsOf: contentURL,
                     encoding: .utf8
                 )
-                let noteContent = NoteContent(text: content)
+                let noteContent = NoteContent(
+                    timestamp: Date.now,
+                    text: content
+                )
                 let note = Note(
-                    content: [noteContent],
+                    contents: [noteContent],
                     createdAt: createdAt,
                     fileURL: contentURL
                 )
@@ -76,110 +126,6 @@ class ModelData: ObservableObject {
         }
 
         self.notes = notes
-    }
-
-    func writeNote(_ newContent: String, type: NoteType) {
-        self.startRecording(type: type)
-
-        switch type {
-        case .process:
-            self.proccessNote = newContent
-        case .application:
-            self.applicationNote = newContent
-        case .microphone:
-            self.microphoneNote = newContent
-        }
-
-        //        let foo = self.trimContent(self.proccessNote)
-        //        debugPrint(foo)
-        self.latestNote = self.formatNoteContent(
-            processNote: self.proccessNote,
-            applicationNote: self.applicationNote,
-            microphoneNote: self.microphoneNote
-        )
-        //        guard let noteAt = notes[safe: at]
-        //        else { return }
-        //
-        //        let lastNoteIndex = noteAt.content.count - 1
-        //        guard var lastNote = noteAt.content[safe: lastNoteIndex]
-        //        else { return }
-        //
-        //        lastNote.text = newContent
-        //        notes[safe: at]?.content[safe: lastNoteIndex] = lastNote
-        //
-        //        guard let fileURL = notes[safe: at]?.fileURL
-        //        else { return }
-
-        //        self.writeFile(newContent, url: fileURL)
-    }
-
-    private func trimContent(_ content: String) -> [String] {
-        let maxContentLength = 500
-
-        var splitedContent: [String] = []
-        var tmpContent = content
-        var maxContentCap = min(tmpContent.count, maxContentLength)
-
-        while !tmpContent.isEmpty {
-            splitedContent.append(tmpContent.substring(to: maxContentCap))
-            tmpContent = tmpContent.substring(from: maxContentCap)
-            maxContentCap = min(tmpContent.count, maxContentLength)
-        }
-
-        return splitedContent
-    }
-
-    private func formatNoteContent(
-        processNote: String,
-        applicationNote: String,
-        microphoneNote: String
-    ) -> String {
-        var formattedNote = ""
-        if !processNote.isEmpty {
-            formattedNote += "Process Note:\n\(processNote)\n\n"
-        }
-
-        if !applicationNote.isEmpty {
-            formattedNote += "Application Note:\n\(applicationNote)\n\n"
-        }
-
-        if !microphoneNote.isEmpty {
-            formattedNote += "Microphone Note:\n\(microphoneNote)\n\n"
-        }
-
-        return formattedNote
-    }
-
-    func startRecording(type: NoteType) {
-        switch type {
-        case .process:
-            self.isProccessRecording = true
-        case .application:
-            self.isApplicationRecording = true
-        case .microphone:
-            self.isMicrophoneRecording = true
-        }
-
-        self.isRecording =
-            self.isProccessRecording
-            || self.isApplicationRecording
-            || self.isMicrophoneRecording
-    }
-
-    func stopRecording(type: NoteType) {
-        switch type {
-        case .process:
-            self.isProccessRecording = false
-        case .application:
-            self.isApplicationRecording = false
-        case .microphone:
-            self.isMicrophoneRecording = false
-        }
-
-        self.isRecording =
-            self.isProccessRecording
-            || self.isApplicationRecording
-            || self.isMicrophoneRecording
     }
 
     func openRecordingFolder() {
@@ -248,7 +194,7 @@ class ModelData: ObservableObject {
         }
 
         let newNote = Note(
-            content: [.init(text: content)],
+            contents: [],
             createdAt: currentDate,
             fileURL: fileURL
         )

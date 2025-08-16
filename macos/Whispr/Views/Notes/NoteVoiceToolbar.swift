@@ -178,12 +178,12 @@ struct NoteVoiceToolbar: ToolbarContent {
         Task { @MainActor in
             if isRecording {
                 let _ = await streamSource.startStream(locale: locale) {
-                    transcription,
+                    segments,
                     error in
                     if error != nil {
                         return
                     }
-                    modelData.writeNote(transcription, type: type)
+                    modelData.writeNote(segments, type: type)
                 }
             } else {
                 await streamSource.stopStream()

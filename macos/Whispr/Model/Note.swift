@@ -1,15 +1,15 @@
 import SwiftUI
 
 struct Note {
-    var content: [NoteContent]
-    
+    var contents: [NoteContent]
+
     let createdAt: Date
     let fileURL: URL?
-    
+
     var createdAtInt: Int {
         Int(self.createdAt.timeIntervalSince1970)
     }
-    
+
     var title: String {
         createdAt.ISO8601Format()
     }
@@ -17,7 +17,14 @@ struct Note {
 
 extension Note: Hashable {}
 
+enum NoteType {
+    case process
+    case application
+    case microphone
+}
+
 struct NoteContent {
+    var timestamp: Date
     var text: String
 }
 
