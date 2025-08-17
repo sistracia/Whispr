@@ -4,17 +4,6 @@ struct ContentView: View {
     @EnvironmentObject var modelData: ModelData
 
     @State private var processController = AudioProcessController()
-
-    @State private var processRecorder = ProcessTapRecorder(
-        speechRecognizer: SpeechRecognizer()
-    )
-    @State private var appRecorder = ProcessTapRecorder(
-        speechRecognizer: SpeechRecognizer()
-    )
-    @State private var micRecorder = MicRecorder(
-        speechRecognizer: SpeechRecognizer()
-    )
-
     @State private var selectedNote: Note?
     @State private var showFavoritesOnly = false
 
@@ -34,9 +23,6 @@ struct ContentView: View {
 
                 NoteEditor(
                     note: selectedNote,
-                    processRecorder: processRecorder,
-                    appRecorder: appRecorder,
-                    micRecorder: micRecorder
                 )
                 .frame(maxWidth: geometry.size.width * 0.75)
             }
@@ -49,14 +35,12 @@ struct ContentView: View {
                     placement: .navigation
                 )
             }
-            NoteVoiceToolbar(
-                note: selectedNote,
-                processController: processController,
-                processRecorder: $processRecorder,
-                appRecorder: $appRecorder,
-                micRecorder: $micRecorder,
-                placement: .primaryAction
-            )
+            if selectedNote != nil {
+                NoteVoiceToolbar(
+                    processController: processController,
+                    placement: .primaryAction
+                )
+            }
         }
         .task {
             processController.activate()

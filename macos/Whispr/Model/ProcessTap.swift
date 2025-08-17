@@ -7,7 +7,6 @@ import AVFoundation
 import AudioToolbox
 import Combine
 import OSLog
-import Speech
 import SwiftUI
 
 @Observable
@@ -213,7 +212,7 @@ final class ProcessTap {
 }
 
 @Observable
-final class ProcessTapRecorder: StreamSource {
+final class ProcessTapRecorder: AudioProcessStreamSource {
 
     private let queue = DispatchQueue(
         label: kProcessTapRecorder,
@@ -231,13 +230,8 @@ final class ProcessTapRecorder: StreamSource {
     private var audioMeterCancellable: AnyCancellable?
 
     private var tap: ProcessTap? = nil
-    var process: AudioProcess? = nil
 
-    private let speechRecognizer: SpeechRecognizer
-
-    init(speechRecognizer: SpeechRecognizer) {
-        self.speechRecognizer = speechRecognizer
-    }
+    private var resultHandler: ((AVAudioPCMBuffer) -> Void)? = nil
 
     private func startAudioMetering() {
         audioMeterCancellable = Timer.publish(
@@ -252,9 +246,8 @@ final class ProcessTapRecorder: StreamSource {
 
     @MainActor
     func startStream(
-        locale: Locale? = nil,
-        resultHandler: @escaping ([SFTranscriptionSegment], (any Error)?) ->
-            Void
+        audioProcess: AudioProcess,
+        resultHandler: @escaping (AVAudioPCMBuffer) -> Void
     ) async -> Error? {
         logger.debug(#function)
 
@@ -265,11 +258,7 @@ final class ProcessTapRecorder: StreamSource {
             return ""
         }
 
-        guard let process = self.process else {
-            return "Process unavailable"
-        }
-
-        let tap = ProcessTap(process: process)
+        let tap = ProcessTap(process: audioProcess)
         if !tap.activated {
             tap.activate()
         }
@@ -290,31 +279,11 @@ final class ProcessTapRecorder: StreamSource {
             return "Capture not allowed"
         }
 
-        let isTranscribingStarted = await self.speechRecognizer
-            .startTranscribing(
-                locale: locale
-            ) {
-                result,
-                error in
-                if let error = error {
-                    self.logger.error(
-                        "Error when transcribing: \(error.localizedDescription)"
-                    )
-                }
-
-                let segments = result?.bestTranscription.segments ?? []
-                resultHandler(segments, nil)
-            }
-
-        // Handle error
-        if !isTranscribingStarted {
-            self.logger.error("Failed to start transcribing")
-        }
-
         self.startAudioMetering()
 
         self.tap = tap
         self.state = .streaming
+        self.resultHandler = resultHandler
 
         return nil
     }
@@ -342,7 +311,7 @@ final class ProcessTapRecorder: StreamSource {
                 }
 
                 self.powerMeter.process(buffer: buffer)
-                self.speechRecognizer.processAudioBuffer(buffer)
+                self.resultHandler?(buffer)
             } invalidationHandler: { [weak self] tap in
                 guard let self else { return }
                 handleInvalidation()
@@ -374,7 +343,8 @@ final class ProcessTapRecorder: StreamSource {
 
         self.audioMeterCancellable?.cancel()
         self.audioMeterCancellable = nil
-        self.speechRecognizer.stopTranscribing()
+
+        self.resultHandler = nil
     }
 
     private func handleInvalidation() {

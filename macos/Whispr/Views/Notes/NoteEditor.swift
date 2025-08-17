@@ -4,9 +4,6 @@ struct NoteEditor: View {
     @EnvironmentObject var modelData: ModelData
 
     var note: Note?
-    var processRecorder: ProcessTapRecorder
-    var appRecorder: ProcessTapRecorder
-    var micRecorder: MicRecorder
 
     var noteIndex: Int? {
         guard let note = note else { return nil }
@@ -25,9 +22,15 @@ struct NoteEditor: View {
             VStack {
                 HStack(spacing: 10) {
                     NoteVoiceMeter(
-                        state: processRecorder.state,
-                        audioLevelsProvider: processRecorder
-                            .audioLevelsProvider,
+                        state:
+                            modelData
+                            .processSpeech
+                            .streamSource
+                            .state,
+                        audioLevelsProvider:
+                            modelData
+                            .processSpeech
+                            .streamSource.audioLevelsProvider,
                         label: {
                             Text("Process Sound Meter")
                         },
@@ -52,8 +55,16 @@ struct NoteEditor: View {
                         }
                     )
                     NoteVoiceMeter(
-                        state: appRecorder.state,
-                        audioLevelsProvider: appRecorder.audioLevelsProvider,
+                        state:
+                            modelData
+                            .applicationSpeech
+                            .streamSource
+                            .state,
+                        audioLevelsProvider:
+                            modelData
+                            .applicationSpeech
+                            .streamSource
+                            .audioLevelsProvider,
                         label: {
                             Text("Application Sound Meter")
                         },
@@ -79,8 +90,16 @@ struct NoteEditor: View {
                     )
 
                     NoteVoiceMeter(
-                        state: micRecorder.state,
-                        audioLevelsProvider: micRecorder.audioLevelsProvider,
+                        state:
+                            modelData
+                            .microphoneSpeech
+                            .streamSource
+                            .state,
+                        audioLevelsProvider:
+                            modelData
+                            .microphoneSpeech
+                            .streamSource
+                            .audioLevelsProvider,
                         label: {
                             Text("Microphone Meter")
                         },
@@ -116,16 +135,6 @@ struct NoteEditor: View {
 }
 
 #Preview {
-    @Previewable @State var processRecorder = ProcessTapRecorder(
-        speechRecognizer: SpeechRecognizer()
-    )
-    @Previewable @State var appRecorder = ProcessTapRecorder(
-        speechRecognizer: SpeechRecognizer()
-    )
-    @Previewable @State var micRecorder = MicRecorder(
-        speechRecognizer: SpeechRecognizer()
-    )
-
     let note = Note(
         contents: [
             .init(
@@ -177,9 +186,6 @@ struct NoteEditor: View {
 
     return NoteEditor(
         note: note,
-        processRecorder: processRecorder,
-        appRecorder: appRecorder,
-        micRecorder: micRecorder,
     )
     .frame(minWidth: 480, maxHeight: 180)
     .environmentObject(modelData)

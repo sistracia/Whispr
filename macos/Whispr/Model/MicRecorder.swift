@@ -2,11 +2,10 @@ import AVFoundation
 import Combine
 import Foundation
 import OSLog
-import Speech
 import SwiftUI
 
 @Observable
-final class MicRecorder: NSObject, StreamSource {
+final class MicRecorder: NSObject, CaptureDeviceStreamSource {
     private let logger = Logger()
 
     private(set) var state = StreamState.stopped
@@ -18,13 +17,7 @@ final class MicRecorder: NSObject, StreamSource {
     private let captureSession = AVCaptureSession()
     private var captureAudioDataOutput = AVCaptureAudioDataOutput()
 
-    var captureDevice: AVCaptureDevice?
-
-    private let speechRecognizer: SpeechRecognizer
-
-    init(speechRecognizer: SpeechRecognizer) {
-        self.speechRecognizer = speechRecognizer
-    }
+    private var resultHandler: ((CMSampleBuffer) -> Void)? = nil
 
     private func startAudioMetering() {
         audioMeterCancellable = Timer.publish(
@@ -39,17 +32,14 @@ final class MicRecorder: NSObject, StreamSource {
 
     @MainActor
     func startStream(
-        locale: Locale? = nil,
-        resultHandler: @escaping ([SFTranscriptionSegment], (any Error)?) ->
-            Void
+        captureDevice: AVCaptureDevice,
+        resultHandler: @escaping (CMSampleBuffer) -> Void
     ) async -> Error? {
+
         let isAllowed = await AVCaptureDevice.requestAccess(for: .audio)
         if !isAllowed {
             return "Microphone access is not allowed"
         }
-
-        guard let captureDevice = self.captureDevice
-        else { return "Capture device not found" }
 
         self.state = .streaming
         self.captureSession.inputs.forEach {
@@ -61,28 +51,8 @@ final class MicRecorder: NSObject, StreamSource {
             return "Capture not allowed"
         }
 
-        let isTranscribingStarted = await self.speechRecognizer
-            .startTranscribing(
-                locale: locale
-            ) {
-                result,
-                error in
-                if let error = error {
-                    self.logger.error(
-                        "Error when transcribing: \(error.localizedDescription)"
-                    )
-                }
-
-                let segments = result?.bestTranscription.segments ?? []
-                resultHandler(segments, nil)
-            }
-
-        // Handle error
-        if !isTranscribingStarted {
-            self.logger.error("Failed to start transcribing")
-        }
-
         self.startAudioMetering()
+        self.resultHandler = resultHandler
 
         return nil
     }
@@ -129,10 +99,10 @@ final class MicRecorder: NSObject, StreamSource {
         self.audioLevelsProvider.audioLevels = AudioLevels.zero
 
         self.captureSession.stopRunning()
-        self.speechRecognizer.stopTranscribing()
-
         self.audioMeterCancellable?.cancel()
         self.audioMeterCancellable = nil
+
+        self.resultHandler = nil
     }
 }
 
@@ -144,22 +114,7 @@ extension MicRecorder: AVCaptureAudioDataOutputSampleBufferDelegate {
     ) {
         Task { @MainActor in
             self.powerMeter.process(buffer: didOutput)
-            self.speechRecognizer.processAudioBuffer(didOutput)
+            resultHandler?(didOutput)
         }
-    }
-}
-
-extension MicRecorder {
-    static var captureDevices: [AVCaptureDevice] {
-        let discoverySession = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.microphone],
-            mediaType: .audio,
-            position: .unspecified
-        )
-        return discoverySession.devices
-    }
-
-    static var authorized: Bool {
-        AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
     }
 }

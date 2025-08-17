@@ -1,5 +1,5 @@
+import AVFoundation
 import Foundation
-import Speech
 
 enum StreamState {
     case stopped
@@ -9,12 +9,19 @@ enum StreamState {
 protocol StreamSource {
     var state: StreamState { get }
     var audioLevelsProvider: AudioLevelsProvider { get }
-
-    func startStream(
-        locale: Locale?,
-        resultHandler: @escaping ([SFTranscriptionSegment], (any Error)?) ->
-            Void
-    ) async -> Error?
-
     func stopStream() async
+}
+
+protocol AudioProcessStreamSource: StreamSource {
+    func startStream(
+        audioProcess: AudioProcess,
+        resultHandler: @escaping (AVAudioPCMBuffer) -> Void
+    ) async -> Error?
+}
+
+protocol CaptureDeviceStreamSource: StreamSource {
+    func startStream(
+        captureDevice: AVCaptureDevice,
+        resultHandler: @escaping (CMSampleBuffer) -> Void
+    ) async -> Error?
 }

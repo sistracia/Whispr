@@ -18,35 +18,153 @@ class ModelData: ObservableObject {
 
     @Published private(set) var notes: [Note] = []
 
-    private var processSpeech = SpeechText()
-    private var applicationSpeech = SpeechText()
-    private var microphoneSpeech = SpeechText()
+    private(set) var processSpeech = AudioProcessSpeechText(
+        audioSource: ProcessTapRecorder()
+    )
+    private(set) var applicationSpeech = AudioProcessSpeechText(
+        audioSource: ProcessTapRecorder()
+    )
+    private(set) var microphoneSpeech = CaptureDeviceSpeechText(
+        audioSource: MicRecorder()
+    )
 
-    @Published private(set) var isRecording = false
-    @Published var formattedNote: String = ""
-
-    init(notes: [Note] = [], isRecording: Bool = false) {
-        self.notes = notes
-        self.isRecording = isRecording
+    var isProcessStreaming: Bool {
+        processSpeech.streamSource.state == .streaming
     }
 
-    func writeNote(_ segments: [SFTranscriptionSegment], type: NoteType) {
-        if segments.isEmpty {
+    var isApplicationStreaming: Bool {
+        applicationSpeech.streamSource.state == .streaming
+    }
+
+    var isMicrophoneStreaming: Bool {
+        microphoneSpeech.streamSource.state == .streaming
+    }
+
+    var isStreaming: Bool {
+        isProcessStreaming || isApplicationStreaming || isMicrophoneStreaming
+    }
+
+    var isRecording: Bool {
+        return self.processSpeech.isRecording
+            || self.applicationSpeech.isRecording
+            || self.microphoneSpeech.isRecording
+    }
+
+    @Published var formattedNote: String = ""
+    private var formattedNoteCancellable: AnyCancellable?
+
+    init(notes: [Note] = []) {
+        self.notes = notes
+    }
+
+    func toggleRecording(
+        type: NoteType,
+        isRecording: Bool,
+        audioProcess: AudioProcess,
+        locale: Locale?,
+    ) async -> Error? {
+        let error = await {
+            switch type {
+            case .process:
+                return await self.processSpeech.toggleStart(
+                    isRecording: isRecording,
+                    audioProcess: audioProcess,
+                    locale: locale
+                )
+            case .application:
+                return await self.applicationSpeech.toggleStart(
+                    isRecording: isRecording,
+                    audioProcess: audioProcess,
+                    locale: locale
+                )
+            default:
+                return nil
+            }
+        }()
+
+        if error != nil {
+            return error
+        }
+
+        if isRecording {
+            self.startFormatNote()
+        } else {
+            self.stopFormatNote()
+        }
+
+        return nil
+    }
+
+    func toggleRecording(
+        type: NoteType,
+        isRecording: Bool,
+        captureDevice: AVCaptureDevice,
+        locale: Locale?,
+    ) async -> Error? {
+        let error = await {
+            switch type {
+            case .microphone:
+                return await self.microphoneSpeech.toggleStart(
+                    isRecording: isRecording,
+                    captureDevice: captureDevice,
+                    locale: locale
+                )
+            default:
+                return nil
+            }
+        }()
+
+        if error != nil {
+            return error
+        }
+
+        if isRecording {
+            self.startFormatNote()
+        } else {
+            self.stopFormatNote()
+        }
+
+        return nil
+    }
+
+    private func startFormatNote() {
+        formattedNoteCancellable = Timer.publish(
+            every: 1,
+            on: .main,
+            in: .common
+        ).autoconnect().sink { [weak self] _ in
+            guard let self = self else { return }
+
+            var formattedNote = ""
+            for index in stride(
+                from: 0,
+                to: self.processSpeech.timestamps.count,
+                by: 1
+            ) {
+                let timestamp = self.processSpeech.timestamps[index]
+                let startIndex = min(
+                    timestamp.range.startIndex,
+                    self.processSpeech.fullText.count
+                )
+                let endIndex = min(
+                    timestamp.range.endIndex,
+                    self.processSpeech.fullText.count
+                )
+                formattedNote += self.processSpeech.fullText.substring(
+                    with: startIndex..<endIndex
+                )
+            }
+            self.formattedNote = formattedNote
+        }
+    }
+
+    private func stopFormatNote() {
+        if self.isRecording {
             return
         }
 
-        switch type {
-        case .process:
-            self.processSpeech.appendText(segments)
-            self.formattedNote = self.processSpeech.fullText
-        case .application:
-            self.applicationSpeech.appendText(segments)
-        case .microphone:
-            self.microphoneSpeech.appendText(segments)
-        }
-
-        self.updateRecordingState()
-        self.doingSomething()
+        formattedNoteCancellable?.cancel()
+        formattedNoteCancellable = nil
     }
 
     private func doingSomething() {
@@ -64,26 +182,6 @@ class ModelData: ObservableObject {
         //        else { return }
 
         //        self.writeFile(newContent, url: fileURL)
-    }
-
-    func stopRecording(type: NoteType) {
-        switch type {
-        case .process:
-            self.processSpeech.stopListening()
-        case .application:
-            self.applicationSpeech.stopListening()
-        case .microphone:
-            self.microphoneSpeech.stopListening()
-        }
-
-        self.updateRecordingState()
-    }
-
-    private func updateRecordingState() {
-        self.isRecording =
-            self.processSpeech.isRecording
-            || self.applicationSpeech.isRecording
-            || self.microphoneSpeech.isRecording
     }
 
     func loadNotes() {
