@@ -153,27 +153,82 @@ class ModelData: ObservableObject {
         ).autoconnect().sink { [weak self] _ in
             guard let self = self else { return }
 
-            var formattedNote = ""
-            for index in stride(
-                from: 0,
-                to: self.timestamps.count,
-                by: 1
-            ) {
-                let timestamp = self.timestamps[index]
-                let startIndex = min(
-                    timestamp.range.startIndex,
-                    self.microphoneSpeech.fullText.count
-                )
-                let endIndex = min(
-                    timestamp.range.endIndex,
-                    self.microphoneSpeech.fullText.count
-                )
-                formattedNote += self.microphoneSpeech.fullText.substring(
-                    with: startIndex..<endIndex
+            let groupWindow = 60.0  // 1 minute
+            var timestampGroups: [[SpeechTimestamp]] = []
+            var lastTimestamp: Date? = nil
+
+            for timestamp in timestamps {
+                if timestampGroups.isEmpty {
+                    lastTimestamp = timestamp.timestamp
+                    timestampGroups.append([])
+                }
+
+                if let ts = lastTimestamp,
+                    timestamp.timestamp.timeIntervalSince(ts)
+                        > groupWindow
+                {
+                    lastTimestamp = timestamp.timestamp
+                    timestampGroups.append([])
+                }
+
+                timestampGroups[timestampGroups.count - 1].append(
+                    timestamp
                 )
             }
+
+            var formattedNote = ""
+
+            for timestampGroup in timestampGroups {
+                var processNote = ""
+                var applicationNote = ""
+                var microphoneNote = ""
+
+                for timestamp in timestampGroup {
+                    processNote += self.createNote(
+                        speech: self.processSpeech.fullText,
+                        timestamp: timestamp
+                    )
+
+                    applicationNote += self.createNote(
+                        speech: self.applicationSpeech.fullText,
+                        timestamp: timestamp
+                    )
+
+                    microphoneNote += self.createNote(
+                        speech: self.microphoneSpeech.fullText,
+                        timestamp: timestamp
+                    )
+                }
+
+                if !processNote.isEmpty {
+                    formattedNote += "Process Note:\n\(processNote)\n\n"
+                }
+
+                if !applicationNote.isEmpty {
+                    formattedNote += "Application Note:\n\(applicationNote)\n\n"
+                }
+
+                if !microphoneNote.isEmpty {
+                    formattedNote += "Microphone Note:\n\(microphoneNote)\n\n"
+                }
+            }
+
             self.formattedNote = formattedNote
         }
+    }
+
+    func createNote(speech: String, timestamp: SpeechTimestamp) -> String {
+        let startIndex = min(
+            timestamp.range.startIndex,
+            speech.count
+        )
+        let endIndex = min(
+            timestamp.range.endIndex,
+            speech.count
+        )
+        return speech.substring(
+            with: startIndex..<endIndex
+        )
     }
 
     private func stopFormatNote() {
