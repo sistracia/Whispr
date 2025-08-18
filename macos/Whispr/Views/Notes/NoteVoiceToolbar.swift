@@ -20,15 +20,11 @@ struct NoteVoiceToolbar: ToolbarContent {
             set: { isRecording in
                 guard let processAudioProcess = processAudioProcess
                 else { return }
-
-                Task {
-                    let _ = await modelData.toggleRecording(
-                        isRecording: isRecording,
-                        audioProcess: processAudioProcess,
-                        locale: locale,
-                        audioProcessSpeech: modelData.processSpeech
-                    )
-                }
+                toggleRecording(
+                    isRecording: isRecording,
+                    audioSource: .audioProcess(processAudioProcess),
+                    speechProcessor: modelData.processSpeech
+                )
             }
         )
 
@@ -37,15 +33,11 @@ struct NoteVoiceToolbar: ToolbarContent {
             set: { isRecording in
                 guard let applicationAudioProcess = applicationAudioProcess
                 else { return }
-
-                Task {
-                    let _ = await modelData.toggleRecording(
-                        isRecording: isRecording,
-                        audioProcess: applicationAudioProcess,
-                        locale: locale,
-                        audioProcessSpeech: modelData.applicationSpeech
-                    )
-                }
+                toggleRecording(
+                    isRecording: isRecording,
+                    audioSource: .audioProcess(applicationAudioProcess),
+                    speechProcessor: modelData.applicationSpeech
+                )
             }
         )
 
@@ -54,15 +46,11 @@ struct NoteVoiceToolbar: ToolbarContent {
             set: { isRecording in
                 guard let captureDevice = captureDevice
                 else { return }
-
-                Task {
-                    let _ = await modelData.toggleRecording(
-                        isRecording: isRecording,
-                        captureDevice: captureDevice,
-                        locale: locale,
-                        captureDeviceSpeech: modelData.microphoneSpeech
-                    )
-                }
+                toggleRecording(
+                    isRecording: isRecording,
+                    audioSource: .captureDevice(captureDevice),
+                    speechProcessor: modelData.microphoneSpeech
+                )
             }
         )
 
@@ -153,6 +141,21 @@ struct NoteVoiceToolbar: ToolbarContent {
                         ? "microphone.slash" : "microphone"
                 )
             }
+        }
+    }
+
+    private func toggleRecording(
+        isRecording: Bool,
+        audioSource: AudioSourceType,
+        speechProcessor: SpeechProcessor
+    ) {
+        Task {
+            let _ = await modelData.toggleRecording(
+                isRecording: isRecording,
+                audioSource: audioSource,
+                locale: locale,
+                speechProcessor: speechProcessor
+            )
         }
     }
 }

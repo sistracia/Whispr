@@ -84,53 +84,14 @@ class ModelData: ObservableObject {
 
     func toggleRecording(
         isRecording: Bool,
-        audioProcess: AudioProcess,
+        audioSource: AudioSourceType,
         locale: Locale?,
-        audioProcessSpeech: AudioProcessSpeech
+        speechProcessor: SpeechProcessor
     ) async -> Error? {
         if isRecording {
             self.startRecognitionTime = Date.now
-            let error = await audioProcessSpeech.start(
-                audioProcess: audioProcess,
-                locale: locale
-            ) { [weak self] transcription, segmentTimestamp in
-                guard let self = self else { return }
-                self.transcriptionResult(
-                    transcription: transcription,
-                    segmentTimestamp: segmentTimestamp
-                )
-            }
-
-            if error != nil {
-                return error
-            }
-
-            self.startFormatNote()
-
-        } else {
-            self.startRecognitionTime = nil
-            let error = await audioProcessSpeech.stop()
-
-            if error != nil {
-                return error
-            }
-
-            self.stopFormatNote()
-        }
-
-        return nil
-    }
-
-    func toggleRecording(
-        isRecording: Bool,
-        captureDevice: AVCaptureDevice,
-        locale: Locale?,
-        captureDeviceSpeech: CaptureDeviceSpeech
-    ) async -> Error? {
-        if isRecording {
-            self.startRecognitionTime = Date.now
-            let error = await captureDeviceSpeech.start(
-                captureDevice: captureDevice,
+            let error = await speechProcessor.start(
+                audioSource: audioSource,
                 locale: locale
             ) { [weak self] transcription, segmentTimestamp in
                 guard let self = self else { return }
@@ -147,7 +108,7 @@ class ModelData: ObservableObject {
             self.startFormatNote()
         } else {
             self.startRecognitionTime = nil
-            let error = await captureDeviceSpeech.stop()
+            let error = await speechProcessor.stop()
 
             if error != nil {
                 return error

@@ -2,18 +2,14 @@ import Foundation
 import OSLog
 import Speech
 
-protocol AudioProcessSpeech {
-    func start(
-        audioProcess: AudioProcess,
-        locale: Locale?,
-        transcriptionResult: @escaping (String, TimeInterval) -> Void
-    ) async -> Error?
-    func stop() async -> Error?
+enum AudioSourceType {
+    case audioProcess(AudioProcess)
+    case captureDevice(AVCaptureDevice)
 }
 
-protocol CaptureDeviceSpeech {
+protocol SpeechProcessor {
     func start(
-        captureDevice: AVCaptureDevice,
+        audioSource: AudioSourceType,
         locale: Locale?,
         transcriptionResult: @escaping (String, TimeInterval) -> Void
     ) async -> Error?
@@ -98,7 +94,7 @@ class SpeechText: ObservableObject {
 
 }
 
-class AudioProcessSpeechText: SpeechText, AudioProcessSpeech {
+class AudioProcessSpeechText: SpeechText, SpeechProcessor {
     private(set) var audioSource: AudioProcessStreamSource
 
     init(audioSource: AudioProcessStreamSource) {
@@ -107,38 +103,52 @@ class AudioProcessSpeechText: SpeechText, AudioProcessSpeech {
     }
 
     func start(
-        audioProcess: AudioProcess,
+        audioSource: AudioSourceType,
         locale: Locale?,
         transcriptionResult: @escaping (String, TimeInterval) -> Void
     )
         async -> Error?
     {
-        var error = await super.startTranscribing(
-            locale: locale,
-            transcriptionResult: transcriptionResult
-        )
-        if error != nil {
-            self.logger.error("Failed to start transcribing")
-            return error
-        }
+        switch audioSource {
+        case .audioProcess(let audioProcess):
+            var error = await super.startTranscribing(
+                locale: locale,
+                transcriptionResult: transcriptionResult
+            )
+            if error != nil {
+                self.logger.error("Failed to start transcribing")
+                return error
+            }
 
-        error = await self.audioSource.startStream(
-            audioProcess: audioProcess,
-        ) { [weak self] result in
-            guard let self = self else { return }
-            self.recognizer.processAudioBuffer(result)
-        }
+            error = await self.audioSource.startStream(
+                audioProcess: audioProcess,
+            ) { [weak self] result in
+                guard let self = self else { return }
+                self.recognizer.processAudioBuffer(result)
+            }
 
-        if error != nil {
-            self.logger.error("Failed to start process")
+            if error != nil {
+                self.logger.error("Failed to start process")
+                return nil
+            }
+
             return nil
+
+        case .captureDevice:
+            return NSError(
+                domain: "InvalidAudioSource",
+                code: 1,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "AudioProcessSpeechText cannot handle AVCaptureDevice"
+                ]
+            )
         }
 
-        return nil
     }
 }
 
-class CaptureDeviceSpeechText: SpeechText, CaptureDeviceSpeech {
+class CaptureDeviceSpeechText: SpeechText, SpeechProcessor {
     private(set) var audioSource: CaptureDeviceStreamSource
 
     init(audioSource: CaptureDeviceStreamSource) {
@@ -147,31 +157,43 @@ class CaptureDeviceSpeechText: SpeechText, CaptureDeviceSpeech {
     }
 
     func start(
-        captureDevice: AVCaptureDevice,
+        audioSource: AudioSourceType,
         locale: Locale?,
         transcriptionResult: @escaping (String, TimeInterval) -> Void
     ) async -> Error? {
-        var error = await super.startTranscribing(
-            locale: locale,
-            transcriptionResult: transcriptionResult
-        )
-        if error != nil {
-            self.logger.error("Failed to start transcribing")
-            return error
-        }
+        switch audioSource {
+        case .captureDevice(let captureDevice):
+            var error = await super.startTranscribing(
+                locale: locale,
+                transcriptionResult: transcriptionResult
+            )
+            if error != nil {
+                self.logger.error("Failed to start transcribing")
+                return error
+            }
 
-        error = await self.audioSource.startStream(
-            captureDevice: captureDevice,
-        ) { [weak self] result in
-            guard let self = self else { return }
-            self.recognizer.processAudioBuffer(result)
-        }
+            error = await self.audioSource.startStream(
+                captureDevice: captureDevice,
+            ) { [weak self] result in
+                guard let self = self else { return }
+                self.recognizer.processAudioBuffer(result)
+            }
 
-        if error != nil {
-            self.logger.error("Failed to start process")
+            if error != nil {
+                self.logger.error("Failed to start process")
+                return nil
+            }
+
             return nil
+        case .audioProcess:
+            return NSError(
+                domain: "InvalidAudioSource",
+                code: 1,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "CaptureDeviceSpeechText cannot handle AudioProcess"
+                ]
+            )
         }
-
-        return nil
     }
 }
