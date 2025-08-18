@@ -2,14 +2,22 @@ import Foundation
 import OSLog
 import Speech
 
-struct SpeechRange {
-    var startIndex: Int
-    var endIndex: Int
+protocol AudioProcessSpeech {
+    func start(
+        audioProcess: AudioProcess,
+        locale: Locale?,
+        transcriptionResult: @escaping (String, TimeInterval) -> Void
+    ) async -> Error?
+    func stop() async -> Error?
 }
 
-struct SpeechTimestamp {
-    var timestamp: Date
-    var range: SpeechRange
+protocol CaptureDeviceSpeech {
+    func start(
+        captureDevice: AVCaptureDevice,
+        locale: Locale?,
+        transcriptionResult: @escaping (String, TimeInterval) -> Void
+    ) async -> Error?
+    func stop() async -> Error?
 }
 
 class SpeechText: ObservableObject {
@@ -20,9 +28,6 @@ class SpeechText: ObservableObject {
     private(set) var isRecording = false
     private(set) var fullText = ""
 
-    private(set) var timestamps: [SpeechTimestamp] = []
-    private var startRecognitionTime: Date?
-
     // The transcribing result will have cut in the middle of trascription for the utterance
     private var utterances: [String] = [""]
 
@@ -32,54 +37,11 @@ class SpeechText: ObservableObject {
         self.streamSource = streamSource
     }
 
-    private func startListening() {
-        self.startRecognitionTime = Date.now
+    fileprivate func startTranscribing(
+        locale: Locale?,
+        transcriptionResult: @escaping (String, TimeInterval) -> Void
+    ) async -> Error? {
         self.isRecording = true
-    }
-
-    private func stopListening() {
-        self.startRecognitionTime = nil
-        self.isRecording = false
-    }
-
-    private func processRecognition(result: SFSpeechRecognitionResult?) {
-        let transcription =
-            result?.bestTranscription.formattedString ?? ""
-        let segments = result?.bestTranscription.segments ?? []
-
-        let lastIndex = self.utterances.count - 1
-        self.utterances[safe: lastIndex] = transcription
-        self.fullText = utterances.joined(separator: " ")
-
-        let confidenceSample =
-            result?.bestTranscription.segments[0].confidence ?? 0.0
-        let isUtteranceFinal = confidenceSample > 0.0 ? true : false
-        if isUtteranceFinal {
-            self.utterances.append("")
-        }
-
-        guard var startRecognitionTime = self.startRecognitionTime
-        else { return }
-
-        startRecognitionTime = startRecognitionTime.addingTimeInterval(
-            segments.last?.timestamp ?? 0
-        )
-        let startIndex = self.timestamps.last?.range.endIndex ?? 0
-        let speechRange = SpeechRange(
-            startIndex: startIndex,
-            endIndex: max(self.fullText.count, startIndex)
-        )
-        let speechTimestamp = SpeechTimestamp(
-            timestamp: startRecognitionTime,
-            range: speechRange
-        )
-
-        self.timestamps.append(speechTimestamp)
-        self.startRecognitionTime = startRecognitionTime
-    }
-
-    fileprivate func startTranscribing(locale: Locale?) async -> Error? {
-        self.startListening()
 
         let isTranscribingStarted = await self.recognizer
             .startTranscribing(
@@ -90,7 +52,18 @@ class SpeechText: ObservableObject {
                     return
                 }
 
-                self.processRecognition(result: result)
+                let transcription =
+                    result?.bestTranscription.formattedString ?? ""
+                let segments = result?.bestTranscription.segments ?? []
+
+                self.processRecognition(
+                    transcription: transcription,
+                    segments: segments,
+                )
+                transcriptionResult(
+                    self.fullText,
+                    segments.last?.timestamp ?? 0.0
+                )
             }
 
         // Handle error
@@ -101,8 +74,23 @@ class SpeechText: ObservableObject {
         return nil
     }
 
+    private func processRecognition(
+        transcription: String,
+        segments: [SFTranscriptionSegment]
+    ) {
+        let lastIndex = self.utterances.count - 1
+        self.utterances[safe: lastIndex] = transcription
+        self.fullText = utterances.joined(separator: " ")
+
+        let confidenceSample = segments.first?.confidence ?? 0.0
+        let isUtteranceFinal = confidenceSample > 0.0 ? true : false
+        if isUtteranceFinal {
+            self.utterances.append("")
+        }
+    }
+
     func stop() async -> Error? {
-        self.stopListening()
+        self.isRecording = false
         await self.streamSource.stopStream()
         self.recognizer.stopTranscribing()
         return nil
@@ -110,7 +98,7 @@ class SpeechText: ObservableObject {
 
 }
 
-class AudioProcessSpeechText: SpeechText {
+class AudioProcessSpeechText: SpeechText, AudioProcessSpeech {
     private(set) var audioSource: AudioProcessStreamSource
 
     init(audioSource: AudioProcessStreamSource) {
@@ -118,8 +106,17 @@ class AudioProcessSpeechText: SpeechText {
         super.init(streamSource: audioSource)
     }
 
-    func start(audioProcess: AudioProcess, locale: Locale?) async -> Error? {
-        var error = await super.startTranscribing(locale: locale)
+    func start(
+        audioProcess: AudioProcess,
+        locale: Locale?,
+        transcriptionResult: @escaping (String, TimeInterval) -> Void
+    )
+        async -> Error?
+    {
+        var error = await super.startTranscribing(
+            locale: locale,
+            transcriptionResult: transcriptionResult
+        )
         if error != nil {
             self.logger.error("Failed to start transcribing")
             return error
@@ -139,24 +136,9 @@ class AudioProcessSpeechText: SpeechText {
 
         return nil
     }
-
-    func toggleStart(
-        isRecording: Bool,
-        audioProcess: AudioProcess,
-        locale: Locale?,
-    ) async -> Error? {
-        if !isRecording {
-            return await self.stop()
-        }
-
-        return await self.start(
-            audioProcess: audioProcess,
-            locale: locale
-        )
-    }
 }
 
-class CaptureDeviceSpeechText: SpeechText {
+class CaptureDeviceSpeechText: SpeechText, CaptureDeviceSpeech {
     private(set) var audioSource: CaptureDeviceStreamSource
 
     init(audioSource: CaptureDeviceStreamSource) {
@@ -164,9 +146,15 @@ class CaptureDeviceSpeechText: SpeechText {
         super.init(streamSource: audioSource)
     }
 
-    func start(captureDevice: AVCaptureDevice, locale: Locale?) async -> Error?
-    {
-        var error = await super.startTranscribing(locale: locale)
+    func start(
+        captureDevice: AVCaptureDevice,
+        locale: Locale?,
+        transcriptionResult: @escaping (String, TimeInterval) -> Void
+    ) async -> Error? {
+        var error = await super.startTranscribing(
+            locale: locale,
+            transcriptionResult: transcriptionResult
+        )
         if error != nil {
             self.logger.error("Failed to start transcribing")
             return error
@@ -185,20 +173,5 @@ class CaptureDeviceSpeechText: SpeechText {
         }
 
         return nil
-    }
-
-    func toggleStart(
-        isRecording: Bool,
-        captureDevice: AVCaptureDevice,
-        locale: Locale?,
-    ) async -> Error? {
-        if !isRecording {
-            return await self.stop()
-        }
-
-        return await self.start(
-            captureDevice: captureDevice,
-            locale: locale
-        )
     }
 }

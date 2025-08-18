@@ -23,10 +23,10 @@ struct NoteVoiceToolbar: ToolbarContent {
 
                 Task {
                     let _ = await modelData.toggleRecording(
-                        type: .process,
                         isRecording: isRecording,
                         audioProcess: processAudioProcess,
-                        locale: locale
+                        locale: locale,
+                        audioProcessSpeech: modelData.processSpeech
                     )
                 }
             }
@@ -40,10 +40,10 @@ struct NoteVoiceToolbar: ToolbarContent {
 
                 Task {
                     let _ = await modelData.toggleRecording(
-                        type: .application,
                         isRecording: isRecording,
                         audioProcess: applicationAudioProcess,
-                        locale: locale
+                        locale: locale,
+                        audioProcessSpeech: modelData.applicationSpeech
                     )
                 }
             }
@@ -57,10 +57,10 @@ struct NoteVoiceToolbar: ToolbarContent {
 
                 Task {
                     let _ = await modelData.toggleRecording(
-                        type: .application,
                         isRecording: isRecording,
                         captureDevice: captureDevice,
-                        locale: locale
+                        locale: locale,
+                        captureDeviceSpeech: modelData.microphoneSpeech
                     )
                 }
             }

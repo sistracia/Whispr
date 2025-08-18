@@ -3,6 +3,16 @@ import OSLog
 import Speech
 import SwiftUI
 
+struct SpeechRange {
+    var startIndex: Int
+    var endIndex: Int
+}
+
+struct SpeechTimestamp {
+    var timestamp: Date
+    var range: SpeechRange
+}
+
 @MainActor
 class ModelData: ObservableObject {
     private let logger = Logger()
@@ -18,15 +28,14 @@ class ModelData: ObservableObject {
 
     @Published private(set) var notes: [Note] = []
 
-    private(set) var processSpeech = AudioProcessSpeechText(
-        audioSource: ProcessTapRecorder()
-    )
-    private(set) var applicationSpeech = AudioProcessSpeechText(
-        audioSource: ProcessTapRecorder()
-    )
-    private(set) var microphoneSpeech = CaptureDeviceSpeechText(
-        audioSource: MicRecorder()
-    )
+    private(set) var processAudioSource: ProcessTapRecorder
+    private(set) var processSpeech: AudioProcessSpeechText
+
+    private(set) var applicationAudioSource: ProcessTapRecorder
+    private(set) var applicationSpeech: AudioProcessSpeechText
+
+    private(set) var microphoneAudioSource: MicRecorder
+    private(set) var microphoneSpeech: CaptureDeviceSpeechText
 
     var isProcessStreaming: Bool {
         processSpeech.streamSource.state == .streaming
@@ -52,43 +61,60 @@ class ModelData: ObservableObject {
 
     @Published var formattedNote: String = ""
     private var formattedNoteCancellable: AnyCancellable?
+    private(set) var timestamps: [SpeechTimestamp] = []
+    private var startRecognitionTime: Date?
 
     init(notes: [Note] = []) {
         self.notes = notes
+
+        self.processAudioSource = ProcessTapRecorder()
+        self.applicationAudioSource = ProcessTapRecorder()
+        self.microphoneAudioSource = MicRecorder()
+
+        self.processSpeech = AudioProcessSpeechText(
+            audioSource: self.processAudioSource
+        )
+        self.applicationSpeech = AudioProcessSpeechText(
+            audioSource: self.applicationAudioSource
+        )
+        self.microphoneSpeech = CaptureDeviceSpeechText(
+            audioSource: self.microphoneAudioSource
+        )
     }
 
     func toggleRecording(
-        type: NoteType,
         isRecording: Bool,
         audioProcess: AudioProcess,
         locale: Locale?,
+        audioProcessSpeech: AudioProcessSpeech
     ) async -> Error? {
-        let error = await {
-            switch type {
-            case .process:
-                return await self.processSpeech.toggleStart(
-                    isRecording: isRecording,
-                    audioProcess: audioProcess,
-                    locale: locale
-                )
-            case .application:
-                return await self.applicationSpeech.toggleStart(
-                    isRecording: isRecording,
-                    audioProcess: audioProcess,
-                    locale: locale
-                )
-            default:
-                return nil
-            }
-        }()
-
-        if error != nil {
-            return error
-        }
-
         if isRecording {
+            self.startRecognitionTime = Date.now
+            let error = await audioProcessSpeech.start(
+                audioProcess: audioProcess,
+                locale: locale
+            ) { [weak self] transcription, segmentTimestamp in
+                guard let self = self else { return }
+                self.transcriptionResult(
+                    transcription: transcription,
+                    segmentTimestamp: segmentTimestamp
+                )
+            }
+
+            if error != nil {
+                return error
+            }
+
             self.startFormatNote()
+
         } else {
+            self.startRecognitionTime = nil
+            let error = await audioProcessSpeech.stop()
+
+            if error != nil {
+                return error
+            }
+
             self.stopFormatNote()
         }
 
@@ -96,35 +122,66 @@ class ModelData: ObservableObject {
     }
 
     func toggleRecording(
-        type: NoteType,
         isRecording: Bool,
         captureDevice: AVCaptureDevice,
         locale: Locale?,
+        captureDeviceSpeech: CaptureDeviceSpeech
     ) async -> Error? {
-        let error = await {
-            switch type {
-            case .microphone:
-                return await self.microphoneSpeech.toggleStart(
-                    isRecording: isRecording,
-                    captureDevice: captureDevice,
-                    locale: locale
-                )
-            default:
-                return nil
-            }
-        }()
-
-        if error != nil {
-            return error
-        }
-
         if isRecording {
+            self.startRecognitionTime = Date.now
+            let error = await captureDeviceSpeech.start(
+                captureDevice: captureDevice,
+                locale: locale
+            ) { [weak self] transcription, segmentTimestamp in
+                guard let self = self else { return }
+                self.transcriptionResult(
+                    transcription: transcription,
+                    segmentTimestamp: segmentTimestamp
+                )
+            }
+
+            if error != nil {
+                return error
+            }
+
             self.startFormatNote()
         } else {
+            self.startRecognitionTime = nil
+            let error = await captureDeviceSpeech.stop()
+
+            if error != nil {
+                return error
+            }
+
             self.stopFormatNote()
         }
 
         return nil
+    }
+
+    private func transcriptionResult(
+        transcription: String,
+        segmentTimestamp: TimeInterval,
+    ) {
+        guard var startRecognitionTime = self.startRecognitionTime
+        else { return }
+
+        startRecognitionTime = startRecognitionTime.addingTimeInterval(
+            segmentTimestamp
+        )
+
+        let startIndex = self.timestamps.last?.range.endIndex ?? 0
+        let speechRange = SpeechRange(
+            startIndex: startIndex,
+            endIndex: max(transcription.count, startIndex)
+        )
+        let speechTimestamp = SpeechTimestamp(
+            timestamp: startRecognitionTime,
+            range: speechRange
+        )
+
+        self.timestamps.append(speechTimestamp)
+        self.startRecognitionTime = startRecognitionTime
     }
 
     private func startFormatNote() {
@@ -138,19 +195,19 @@ class ModelData: ObservableObject {
             var formattedNote = ""
             for index in stride(
                 from: 0,
-                to: self.processSpeech.timestamps.count,
+                to: self.timestamps.count,
                 by: 1
             ) {
-                let timestamp = self.processSpeech.timestamps[index]
+                let timestamp = self.timestamps[index]
                 let startIndex = min(
                     timestamp.range.startIndex,
-                    self.processSpeech.fullText.count
+                    self.microphoneSpeech.fullText.count
                 )
                 let endIndex = min(
                     timestamp.range.endIndex,
-                    self.processSpeech.fullText.count
+                    self.microphoneSpeech.fullText.count
                 )
-                formattedNote += self.processSpeech.fullText.substring(
+                formattedNote += self.microphoneSpeech.fullText.substring(
                     with: startIndex..<endIndex
                 )
             }

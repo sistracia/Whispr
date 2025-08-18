@@ -17,7 +17,7 @@ final class MicRecorder: NSObject, CaptureDeviceStreamSource {
     private let captureSession = AVCaptureSession()
     private var captureAudioDataOutput = AVCaptureAudioDataOutput()
 
-    private var resultHandler: ((CMSampleBuffer) -> Void)? = nil
+    private var resultHandler: ((AVAudioPCMBuffer) -> Void)? = nil
 
     private func startAudioMetering() {
         audioMeterCancellable = Timer.publish(
@@ -33,7 +33,7 @@ final class MicRecorder: NSObject, CaptureDeviceStreamSource {
     @MainActor
     func startStream(
         captureDevice: AVCaptureDevice,
-        resultHandler: @escaping (CMSampleBuffer) -> Void
+        resultHandler: @escaping (AVAudioPCMBuffer) -> Void
     ) async -> Error? {
 
         let isAllowed = await AVCaptureDevice.requestAccess(for: .audio)
@@ -113,8 +113,10 @@ extension MicRecorder: AVCaptureAudioDataOutputSampleBufferDelegate {
         from: AVCaptureConnection
     ) {
         Task { @MainActor in
-            self.powerMeter.process(buffer: didOutput)
-            resultHandler?(didOutput)
+            guard let avAudioPCMBuffer = didOutput.toAVAudioPCMBuffer()
+            else { return }
+            self.powerMeter.process(buffer: avAudioPCMBuffer)
+            resultHandler?(avAudioPCMBuffer)
         }
     }
 }

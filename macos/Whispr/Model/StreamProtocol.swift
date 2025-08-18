@@ -22,6 +22,6 @@ protocol AudioProcessStreamSource: StreamSource {
 protocol CaptureDeviceStreamSource: StreamSource {
     func startStream(
         captureDevice: AVCaptureDevice,
-        resultHandler: @escaping (CMSampleBuffer) -> Void
+        resultHandler: @escaping (AVAudioPCMBuffer) -> Void
     ) async -> Error?
 }
